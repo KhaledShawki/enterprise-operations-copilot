@@ -8,7 +8,9 @@
 *.iml
 *.iws
 *.ipr
-out/
+/out/
+/modules/*/out/
+/services/*/out/
 
 # Visual Studio Code
 .vscode/
