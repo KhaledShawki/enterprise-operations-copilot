@@ -1,0 +1,110 @@
+<!--
+  Copyright (c) 2026 Khaled Shawki.
+  Licensed under the MIT License.
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.0</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>io.github.khaledshawki.eoc</groupId>
+  <artifactId>enterprise-operations-copilot</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>Enterprise Operations Copilot</name>
+  <description>
+    Multi-tenant operational intelligence platform with reliable data
+    ingestion, event-driven analytics, and evidence-backed AI assistance.
+  </description>
+  <url>https://github.com/KhaledShawki/enterprise-operations-copilot</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>khaledshawki</id>
+      <name>Khaled Shawki</name>
+      <url>https://github.com/KhaledShawki</url>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>
+      scm:git:https://github.com/KhaledShawki/enterprise-operations-copilot.git
+    </connection>
+    <developerConnection>
+      scm:git:ssh://git@github.com/KhaledShawki/enterprise-operations-copilot.git
+    </developerConnection>
+    <tag>HEAD</tag>
+    <url>
+      https://github.com/KhaledShawki/enterprise-operations-copilot
+    </url>
+  </scm>
+
+  <modules>
+    <module>modules/tenant-access</module>
+    <module>services/platform-service</module>
+  </modules>
+
+  <properties>
+    <java.version>25</java.version>
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.enforcer.plugin.version>3.6.2</maven.enforcer.plugin.version>
+  </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${maven.enforcer.plugin.version}</version>
+        <executions>
+          <execution>
+            <id>enforce-build-environment</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireJavaVersion>
+                  <version>[25,26)</version>
+                  <message>
+                    Java 25 is required to build this project.
+                  </message>
+                </requireJavaVersion>
+
+                <requireMavenVersion>
+                  <version>[3.9.0,4.0.0)</version>
+                  <message>
+                    Maven 3.9 or newer is required to build this project.
+                  </message>
+                </requireMavenVersion>
+              </rules>
+              <fail>true</fail>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>
