@@ -6,92 +6,124 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
-public class TenantTest {
+class TenantTest {
+
+  private static final TenantKey TENANT_KEY = TenantKey.of("tenant-key");
+
+  private static final TenantName TENANT_NAME = TenantName.of("Tenant Name");
 
   @Test
   void shouldCreateActiveTenantWithGeneratedId() {
-    Tenant tenant = Tenant.create(TenantName.of("Tenant Name"));
+    Tenant tenant = Tenant.create(TENANT_KEY, TENANT_NAME);
 
     assertNotNull(tenant.id());
-    assertEquals(TenantName.of("Tenant Name"), tenant.name());
+    assertEquals(TENANT_KEY, tenant.key());
+    assertEquals(TENANT_NAME, tenant.name());
     assertEquals(TenantStatus.ACTIVE, tenant.status());
   }
 
   @Test
-  void shouldReconstituteTenant() {
+  void shouldReconstituteExistingTenant() {
     TenantId tenantId = TenantId.generate();
-    TenantName tenantName = TenantName.of("Tenant Name");
 
-    Tenant tenant = Tenant.reconstitute(tenantId, tenantName, TenantStatus.SUSPENDED);
+    Tenant tenant = Tenant.reconstitute(tenantId, TENANT_KEY, TENANT_NAME, TenantStatus.SUSPENDED);
 
     assertEquals(tenantId, tenant.id());
-    assertEquals(tenantName, tenant.name());
+    assertEquals(TENANT_KEY, tenant.key());
+    assertEquals(TENANT_NAME, tenant.name());
     assertEquals(TenantStatus.SUSPENDED, tenant.status());
   }
 
   @Test
   void shouldRenameTenant() {
-    Tenant tenant = Tenant.create(TenantName.of("Tenant Name"));
-    tenant.rename(TenantName.of("New Tenant Name"));
+    Tenant tenant = Tenant.create(TENANT_KEY, TENANT_NAME);
+    TenantName newName = TenantName.of("New Tenant Name");
 
-    assertEquals(TenantName.of("New Tenant Name"), tenant.name());
+    tenant.rename(newName);
+
+    assertEquals(newName, tenant.name());
   }
 
   @Test
-  void shouldSuspendTenant() {
-    Tenant tenant = Tenant.create(TenantName.of("Tenant Name"));
+  void shouldSuspendActiveTenant() {
+    Tenant tenant = Tenant.create(TENANT_KEY, TENANT_NAME);
+
     tenant.suspend();
 
     assertEquals(TenantStatus.SUSPENDED, tenant.status());
   }
 
   @Test
-  void shouldActivateTenant() {
+  void shouldActivateSuspendedTenant() {
     Tenant tenant =
-        Tenant.reconstitute(
-            TenantId.generate(), TenantName.of("Tenant Name"), TenantStatus.SUSPENDED);
+        Tenant.reconstitute(TenantId.generate(), TENANT_KEY, TENANT_NAME, TenantStatus.SUSPENDED);
+
     tenant.activate();
 
     assertEquals(TenantStatus.ACTIVE, tenant.status());
   }
 
   @Test
-  void shouldRejectSupendingAlreadySuspendedTenant() {
-    Tenant tenant = Tenant.create(TenantName.of("Tenant Name"));
-    tenant.suspend();
+  void shouldRejectSuspendingAlreadySuspendedTenant() {
+    Tenant tenant =
+        Tenant.reconstitute(TenantId.generate(), TENANT_KEY, TENANT_NAME, TenantStatus.SUSPENDED);
 
-    assertThrows(IllegalStateException.class, tenant::suspend);
+    IllegalStateException exception = assertThrows(IllegalStateException.class, tenant::suspend);
+
+    assertEquals("Tenant is already suspended", exception.getMessage());
   }
 
   @Test
   void shouldRejectActivatingAlreadyActiveTenant() {
-    Tenant tenant = Tenant.create(TenantName.of("Tenant Name"));
-    assertThrows(IllegalStateException.class, tenant::activate);
+    Tenant tenant = Tenant.create(TENANT_KEY, TENANT_NAME);
+
+    IllegalStateException exception = assertThrows(IllegalStateException.class, tenant::activate);
+
+    assertEquals("Tenant is already active", exception.getMessage());
   }
 
   @Test
-  void shouldRejectNullName() {
-    assertThrows(IllegalArgumentException.class, () -> Tenant.create(null));
+  void shouldRejectNullKeyWhenCreatingTenant() {
+    assertThrows(NullPointerException.class, () -> Tenant.create(null, TENANT_NAME));
   }
 
   @Test
-  void shouldRejectRenamedTenantWithNullName() {
-    Tenant tenant = Tenant.create(TenantName.of("Tenant Name"));
-    assertThrows(IllegalArgumentException.class, () -> tenant.rename(null));
+  void shouldRejectNullNameWhenCreatingTenant() {
+    assertThrows(NullPointerException.class, () -> Tenant.create(TENANT_KEY, null));
   }
 
   @Test
-  void shouldRejectMissingStateWhenReconstitutingTenant() {
-    TenantId tenantId = TenantId.generate();
-    TenantName tenantName = TenantName.of("Tenant Name");
+  void shouldRejectNullNameWhenRenamingTenant() {
+    Tenant tenant = Tenant.create(TENANT_KEY, TENANT_NAME);
 
+    assertThrows(NullPointerException.class, () -> tenant.rename(null));
+  }
+
+  @Test
+  void shouldRejectNullIdWhenReconstitutingTenant() {
     assertThrows(
-        IllegalArgumentException.class,
-        () -> Tenant.reconstitute(null, tenantName, TenantStatus.ACTIVE));
+        NullPointerException.class,
+        () -> Tenant.reconstitute(null, TENANT_KEY, TENANT_NAME, TenantStatus.ACTIVE));
+  }
+
+  @Test
+  void shouldRejectNullKeyWhenReconstitutingTenant() {
     assertThrows(
-        IllegalArgumentException.class,
-        () -> Tenant.reconstitute(tenantId, null, TenantStatus.ACTIVE));
+        NullPointerException.class,
+        () -> Tenant.reconstitute(TenantId.generate(), null, TENANT_NAME, TenantStatus.ACTIVE));
+  }
+
+  @Test
+  void shouldRejectNullNameWhenReconstitutingTenant() {
     assertThrows(
-        IllegalArgumentException.class, () -> Tenant.reconstitute(tenantId, tenantName, null));
+        NullPointerException.class,
+        () -> Tenant.reconstitute(TenantId.generate(), TENANT_KEY, null, TenantStatus.ACTIVE));
+  }
+
+  @Test
+  void shouldRejectNullStatusWhenReconstitutingTenant() {
+    assertThrows(
+        NullPointerException.class,
+        () -> Tenant.reconstitute(TenantId.generate(), TENANT_KEY, TENANT_NAME, null));
   }
 }

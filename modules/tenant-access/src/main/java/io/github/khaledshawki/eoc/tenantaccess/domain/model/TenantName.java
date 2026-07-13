@@ -1,14 +1,13 @@
 package io.github.khaledshawki.eoc.tenantaccess.domain.model;
 
+import java.util.Objects;
+
 public record TenantName(String value) {
 
   public static final int MAX_LENGTH = 100;
 
   public TenantName {
-    if (value == null) {
-      throw new IllegalArgumentException("Tenant name cannot be null");
-    }
-
+    Objects.requireNonNull(value, "Tenant name cannot be null");
     value = value.trim();
 
     if (value.isEmpty()) {

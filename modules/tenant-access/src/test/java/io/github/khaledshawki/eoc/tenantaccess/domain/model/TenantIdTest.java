@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-public class TenantIdTest {
+class TenantIdTest {
 
   @Test
   void shouldGenerateTenantIdFromUUID() {
@@ -22,6 +22,6 @@ public class TenantIdTest {
 
   @Test
   void shouldRejectNullUuid() {
-    assertThrows(IllegalArgumentException.class, () -> TenantId.of(null));
+    assertThrows(NullPointerException.class, () -> TenantId.of(null));
   }
 }

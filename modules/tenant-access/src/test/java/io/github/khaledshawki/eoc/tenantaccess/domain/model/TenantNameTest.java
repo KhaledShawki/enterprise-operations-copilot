@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
-public class TenantNameTest {
+class TenantNameTest {
 
   @Test
   void shouldCreateValidTenantName() {
@@ -38,6 +38,6 @@ public class TenantNameTest {
 
   @Test
   void shouldRejectNullTenantName() {
-    assertThrows(IllegalArgumentException.class, () -> TenantName.of(null));
+    assertThrows(NullPointerException.class, () -> TenantName.of(null));
   }
 }

@@ -2,7 +2,7 @@ package io.github.khaledshawki.eoc.tenantaccess.application.port.out;
 
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.Tenant;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantId;
-import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
+import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantKey;
 import java.util.Optional;
 
 public interface TenantRepository {
@@ -11,5 +11,5 @@ public interface TenantRepository {
 
   Optional<Tenant> findById(TenantId tenantId);
 
-  boolean existsByName(TenantName tenantName);
+  boolean existsByKey(TenantKey key);
 }
