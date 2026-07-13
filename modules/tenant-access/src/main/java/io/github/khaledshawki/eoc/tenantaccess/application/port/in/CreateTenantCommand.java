@@ -1,10 +1,11 @@
 package io.github.khaledshawki.eoc.tenantaccess.application.port.in;
 
-public record CreateTenantCommand(String tenantName) {
+import java.util.Objects;
+
+public record CreateTenantCommand(String tenantKey, String tenantName) {
 
   public CreateTenantCommand {
-    if (tenantName == null) {
-      throw new IllegalArgumentException("Tenant name cannot be null");
-    }
+    Objects.requireNonNull(tenantKey, "Tenant key cannot be null");
+    Objects.requireNonNull(tenantName, "Tenant name cannot be null");
   }
 }
