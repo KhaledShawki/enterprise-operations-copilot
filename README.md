@@ -29,6 +29,12 @@ The initial foundation uses Java 25, Spring Boot, Maven, PostgreSQL, Keycloak, A
 
 The architecture is designed to evolve with Kafka-compatible event streaming, a Go connector worker, Python-based AI services, Terraform, and Google Cloud as those capabilities are introduced.
 
+## Local development
+
+Keycloak and its PostgreSQL database run locally with Docker Compose.
+
+See the [Local Keycloak runbook](docs/runbooks/local-keycloak.md) for configuration, startup, verification, and reset instructions.
+
 ## Documentation
 
 Architecture decisions, system design, and operational runbooks are maintained under [`docs`](docs).

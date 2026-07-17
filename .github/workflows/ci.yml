@@ -15,6 +15,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  configuration:
+    name: Configuration validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate Keycloak realm JSON
+        run: python3 -m json json.tool deployment/keycloak/eoc-realm.json >/dev/null
+
+      - name: Validate Docker Compose configuration
+        run: >
+          docker compose
+          --env-file deployment/compose/.env.example
+          --file deployment/compose/compose.yaml
+          config --quiet
+
   verify:
     name: Maven verify
     runs-on: ubuntu-latest

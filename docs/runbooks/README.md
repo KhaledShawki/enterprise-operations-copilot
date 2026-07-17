@@ -1,5 +1,9 @@
 # Runbooks
 
-This directory contains operational procedures for diagnosing failures and recovering system components.
+This directory contains operational procedures for running, diagnosing, and recovering system components.
 
-Runbooks are added when the corresponding operational capability is implemented.
+Available runbooks:
+
+- [Local Keycloak](local-keycloak.md) — configure, start, verify, and reset the local identity provider
+
+Runbooks are added alongside the operational capabilities they describe.
