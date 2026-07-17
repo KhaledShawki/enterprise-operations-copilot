@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
 
       - name: Validate Keycloak realm JSON
-        run: python3 -m json json.tool deployment/keycloak/eoc-realm.json >/dev/null
+        run: python3 -m json.tool deployment/keycloak/eoc-realm.json >/dev/null
 
       - name: Validate Docker Compose configuration
         run: >
