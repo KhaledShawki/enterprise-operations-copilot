@@ -7,4 +7,8 @@ public final class TenantKeyAlreadyExistsException extends RuntimeException {
   public TenantKeyAlreadyExistsException(TenantKey tenantKey) {
     super("Tenant key " + tenantKey.value() + " already exists");
   }
+
+  public TenantKeyAlreadyExistsException(TenantKey tenantKey, Throwable cause) {
+    super("Tenant key " + tenantKey.value() + " already exists", cause);
+  }
 }

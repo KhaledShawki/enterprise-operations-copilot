@@ -1,10 +1,12 @@
 package io.github.khaledshawki.eoc.platform.tenantaccess.adapter.out.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.khaledshawki.eoc.platform.TestcontainersConfiguration;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantKeyAlreadyExistsException;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.TenantRepository;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.Tenant;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantKey;
@@ -117,8 +119,9 @@ class TenantPersistenceAdapterIT {
 
     tenantRepository.save(first);
 
-    assertThrows(DataIntegrityViolationException.class, () -> tenantRepository.save(second));
-
+    TenantKeyAlreadyExistsException exception =
+        assertThrows(TenantKeyAlreadyExistsException.class, () -> tenantRepository.save(second));
+    assertInstanceOf(DataIntegrityViolationException.class, exception.getCause());
     assertEquals(1L, springDataTenantRepository.count());
   }
 
