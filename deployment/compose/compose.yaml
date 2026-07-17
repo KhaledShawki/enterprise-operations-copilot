@@ -1,0 +1,87 @@
+name: eoc
+
+services:
+  keycloak-postgres:
+    image: postgres:18.4-alpine
+    restart: unless-stopped
+    shm_size: 128mb
+
+    environment:
+      POSTGRES_DB: "${KEYCLOAK_DB_NAME:?KEYCLOAK_DB_NAME is required}"
+      POSTGRES_USER: "${KEYCLOAK_DB_USERNAME:?KEYCLOAK_DB_USERNAME is required}"
+      POSTGRES_PASSWORD: "${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}"
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+
+    volumes:
+      - keycloak-postgres-data:/var/lib/postgresql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+    networks:
+      - identity
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    restart: unless-stopped
+    mem_limit: 1g
+
+    command:
+      - start-dev
+      - --import-realm
+
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_ADMIN_USERNAME:?KEYCLOAK_ADMIN_USERNAME is required}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}"
+
+      KC_DB: postgres
+      KC_DB_URL: "jdbc:postgresql://keycloak-postgres:5432/${KEYCLOAK_DB_NAME:?KEYCLOAK_DB_NAME is required}"
+      KC_DB_USERNAME: "${KEYCLOAK_DB_USERNAME:?KEYCLOAK_DB_USERNAME is required}"
+      KC_DB_PASSWORD: "${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}"
+
+      KC_HOSTNAME: "http://localhost:8180"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+
+      EOC_DEV_USER_USERNAME: "${EOC_DEV_USER_USERNAME:?EOC_DEV_USER_USERNAME is required}"
+      EOC_DEV_USER_EMAIL: "${EOC_DEV_USER_EMAIL:?EOC_DEV_USER_EMAIL is required}"
+      EOC_DEV_USER_PASSWORD: "${EOC_DEV_USER_PASSWORD:?EOC_DEV_USER_PASSWORD is required}"
+
+    ports:
+      - "127.0.0.1:8180:8080"
+      - "127.0.0.1:9000:9000"
+
+    volumes:
+      - ../keycloak:/opt/keycloak/data/import:ro
+
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+    networks:
+      - identity
+
+volumes:
+  keycloak-postgres-data:
+
+networks:
+  identity:
