@@ -1,5 +1,8 @@
 # Enterprise Operations Copilot
 
+[![CI](https://github.com/KhaledShawki/enterprise-operations-copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/KhaledShawki/enterprise-operations-copilot/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Enterprise Operations Copilot brings operational data from business systems into one place. It is designed to import data reliably, surface operational risks, and answer business questions using traceable evidence.
 
 The first workflow focuses on customers and invoices: importing records from an external source, identifying overdue receivables, and querying the result through a permission-aware copilot.
