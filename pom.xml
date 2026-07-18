@@ -69,6 +69,8 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.enforcer.plugin.version>3.6.2</maven.enforcer.plugin.version>
+    <spotless-maven-plugin.version>3.8.0</spotless-maven-plugin.version>
+    <google-java-format.version>1.35.0</google-java-format.version>
   </properties>
 
   <build>
@@ -101,6 +103,31 @@
               </rules>
               <fail>true</fail>
             </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>${spotless-maven-plugin.version}</version>
+
+        <configuration>
+          <java>
+            <removeUnusedImports />
+
+            <googleJavaFormat>
+              <version>${google-java-format.version}</version>
+              <style>GOOGLE</style>
+            </googleJavaFormat>
+          </java>
+        </configuration>
+
+        <executions>
+          <execution>
+            <id>check-java-formatting</id>
+            <goals>
+              <goal>check</goal>
+            </goals>
           </execution>
         </executions>
       </plugin>

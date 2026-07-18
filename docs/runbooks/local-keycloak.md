@@ -57,6 +57,45 @@ Expected output:
 http://localhost:8180/realms/eoc
 ```
 
+## Configure the platform resource server
+
+The platform service validates JWT access tokens issued by the local `eoc` realm.
+
+The default local configuration is defined in `services/platform-service/src/main/resources/application.properties`.
+
+| Environment variable | Local default | Purpose |
+| --- | --- | --- |
+| `EOC_SECURITY_ISSUER_URI` | `http://localhost:8180/realms/eoc` | Identifies the trusted token issuer |
+| `EOC_SECURITY_JWK_SET_URI` | `http://localhost:8180/realms/eoc/protocol/openid-connect/certs` | Provides the public keys used to verify JWT signatures |
+| `EOC_SECURITY_AUDIENCE` | `platform-api` | Identifies the required access-token audience |
+
+These defaults are intended only for local development. Override them when running against another Keycloak environment.
+
+The platform service:
+
+- validates JWT signatures, expiration, issuer, and audience
+- maps OAuth scopes to authorities prefixed with `SCOPE_`
+- maps Keycloak roles from `realm_access.roles` to authorities prefixed with `ROLE_`
+- operates without HTTP sessions
+- requires authentication for every endpoint unless explicitly configured otherwise
+
+Creating a tenant requires the `platform-admin` realm role:
+
+```http
+POST /api/v1/tenants
+Authorization: Bearer <access-token>
+Content-Type: application/jsonq
+```
+
+Authentication and authorization failures use RFC 9457 Problem Details responses:
+
+| Situation | HTTP status | Problem code |
+| --- | --- | --- |
+| Access token is missing or invalid | `401 Unauthorized` | `AUTHENTICATION_REQUIRED` |
+| Token is valid but lacks `platform-admin` | `403 Forbidden` | `ACCESS_DENIED` |
+
+The platform service does not implement login or password management. Keycloak remains responsible for authentication and credential handling.
+
 ## Open the admin console
 
 Open:
