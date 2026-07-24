@@ -12,11 +12,11 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.stereotype.Component;
 
 @Component
-class JwtAuthenticatedUserMapper {
+public class JwtAuthenticatedUserMapper {
 
   private static final String ROLE_AUTHORITY_PREFIX = "ROLE_";
 
-  AuthenticatedUser map(JwtAuthenticationToken authentication) {
+  public AuthenticatedUser map(JwtAuthenticationToken authentication) {
     Objects.requireNonNull(authentication, "Authentication cannot be null");
 
     Set<String> roles =
