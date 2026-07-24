@@ -10,4 +10,14 @@ public class TenantPersistenceConfiguration {
   TenantPersistenceMapper tenantPersistenceMapper() {
     return new TenantPersistenceMapper();
   }
+
+  @Bean
+  PlatformUserPersistenceMapper platformUserPersistenceMapper() {
+    return new PlatformUserPersistenceMapper();
+  }
+
+  @Bean
+  TenantMembershipPersistenceMapper tenantMembershipPersistenceMapper() {
+    return new TenantMembershipPersistenceMapper();
+  }
 }

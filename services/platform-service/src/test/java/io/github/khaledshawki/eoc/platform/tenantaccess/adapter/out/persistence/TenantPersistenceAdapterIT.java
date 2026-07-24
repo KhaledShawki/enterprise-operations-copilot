@@ -12,23 +12,19 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.Tenant;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantStatus;
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.dao.DataIntegrityViolationException;
 
 @SpringBootTest
-@Import({TestcontainersConfiguration.class, TenantPersistenceAdapterIT.ClockConfiguration.class})
+@Import({TestcontainersConfiguration.class, PersistenceTestClockConfiguration.class})
 class TenantPersistenceAdapterIT {
+
+  @Autowired private SpringDataTenantMembershipRepository springDataTenantMembershipRepository;
 
   private static final Instant INITIAL_TIME = Instant.parse("2026-07-13T08:00:00Z");
 
@@ -40,6 +36,7 @@ class TenantPersistenceAdapterIT {
 
   @BeforeEach
   void setUp() {
+    springDataTenantMembershipRepository.deleteAllInBatch();
     springDataTenantRepository.deleteAllInBatch();
     clock.setInstant(INITIAL_TIME);
   }
@@ -123,44 +120,5 @@ class TenantPersistenceAdapterIT {
         assertThrows(TenantKeyAlreadyExistsException.class, () -> tenantRepository.save(second));
     assertInstanceOf(DataIntegrityViolationException.class, exception.getCause());
     assertEquals(1L, springDataTenantRepository.count());
-  }
-
-  @TestConfiguration(proxyBeanMethods = false)
-  static class ClockConfiguration {
-    @Bean
-    @Primary
-    MutableClock mutableClock() {
-      return new MutableClock(INITIAL_TIME, ZoneOffset.UTC);
-    }
-  }
-
-  static final class MutableClock extends Clock {
-
-    private Instant instant;
-    private final ZoneId zone;
-
-    MutableClock(Instant instant, ZoneId zone) {
-      this.instant = instant;
-      this.zone = zone;
-    }
-
-    void setInstant(Instant instant) {
-      this.instant = instant;
-    }
-
-    @Override
-    public ZoneId getZone() {
-      return zone;
-    }
-
-    @Override
-    public Clock withZone(ZoneId zone) {
-      return new MutableClock(instant, zone);
-    }
-
-    @Override
-    public Instant instant() {
-      return instant;
-    }
   }
 }
