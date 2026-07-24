@@ -45,4 +45,18 @@ class ExternalIdentityTest {
   void shouldRejectBlankSubject() {
     assertThrows(IllegalArgumentException.class, () -> ExternalIdentity.of(ISSUER, " "));
   }
+
+  @Test
+  void shouldRejectIssuerLongerThanMaximumLength() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> ExternalIdentity.of("a".repeat(ExternalIdentity.MAX_ISSUER_LENGTH + 1), SUBJECT));
+  }
+
+  @Test
+  void shouldRejectSubjectLongerThanMaximumLength() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> ExternalIdentity.of(ISSUER, "a".repeat(ExternalIdentity.MAX_SUBJECT_LENGTH + 1)));
+  }
 }

@@ -9,7 +9,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,7 +48,8 @@ class TenantPersistenceAdapter implements TenantRepository {
       TenantJpaEntity savedTenant = tenantRepository.saveAndFlush(entity);
       return tenantPersistenceMapper.toDomain(savedTenant);
     } catch (DataIntegrityViolationException exception) {
-      if (isTenantKeyUniqueConstraintViolation(exception)) {
+      if (PersistenceConstraintViolationDetector.hasConstraintName(
+          exception, TENANT_KEY_UNIQUE_CONSTRAINT)) {
         throw new TenantKeyAlreadyExistsException(tenant.key(), exception);
       }
       throw exception;
@@ -68,20 +68,5 @@ class TenantPersistenceAdapter implements TenantRepository {
   public boolean existsByKey(TenantKey key) {
     Objects.requireNonNull(key, "Tenant key cannot be null");
     return tenantRepository.existsByTenantKey(key.value());
-  }
-
-  private static boolean isTenantKeyUniqueConstraintViolation(Throwable exception) {
-    Throwable cause = exception;
-
-    while (cause != null) {
-      if (cause instanceof ConstraintViolationException constraintViolation
-          && TENANT_KEY_UNIQUE_CONSTRAINT.equals(constraintViolation.getConstraintName())) {
-        return true;
-      }
-
-      cause = cause.getCause();
-    }
-
-    return false;
   }
 }
