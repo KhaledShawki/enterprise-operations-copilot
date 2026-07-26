@@ -43,7 +43,8 @@ public class SecurityConfiguration {
         .authorizeHttpRequests(
             authorization ->
                 authorization
-                    .requestMatchers(HttpMethod.POST, "/api/v1/tenants")
+                    .requestMatchers(
+                        HttpMethod.POST, "/api/v1/tenants", "/api/v1/tenants/*/memberships")
                     .hasRole(PLATFORM_ADMIN_ROLE)
                     .anyRequest()
                     .authenticated())
