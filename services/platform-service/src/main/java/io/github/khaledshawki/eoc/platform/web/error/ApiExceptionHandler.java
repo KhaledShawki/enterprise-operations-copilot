@@ -1,6 +1,11 @@
 package io.github.khaledshawki.eoc.platform.web.error;
 
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotActiveException;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantKeyAlreadyExistsException;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadyExistsException;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotActiveException;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotFoundException;
 import java.net.URI;
 import java.util.Comparator;
 import java.util.List;
@@ -22,6 +27,18 @@ public class ApiExceptionHandler {
   private static final URI MALFORMED_REQUEST_TYPE = URI.create("urn:eoc:problem:malformed-request");
   private static final URI TENANT_KEY_ALREADY_EXISTS_TYPE =
       URI.create("urn:eoc:problem:tenant-key-already-exists");
+  private static final URI TENANT_NOT_FOUND_TYPE = URI.create("urn:eoc:problem:tenant-not-found");
+
+  private static final URI PLATFORM_USER_NOT_FOUND_TYPE =
+      URI.create("urn:eoc:problem:platform-user-not-found");
+
+  private static final URI TENANT_NOT_ACTIVE_TYPE = URI.create("urn:eoc:problem:tenant-not-active");
+
+  private static final URI PLATFORM_USER_NOT_ACTIVE_TYPE =
+      URI.create("urn:eoc:problem:platform-user-not-active");
+
+  private static final URI TENANT_MEMBERSHIP_ALREADY_EXISTS_TYPE =
+      URI.create("urn:eoc:problem:tenant-membership-already-exists");
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ProblemDetail handleValidationFailure(MethodArgumentNotValidException exception) {
@@ -69,6 +86,57 @@ public class ApiExceptionHandler {
             Comparator.comparing(FieldValidationError::field)
                 .thenComparing(FieldValidationError::message))
         .toList();
+  }
+
+  @ExceptionHandler(TenantNotFoundException.class)
+  ProblemDetail handleTenantNotFound(TenantNotFoundException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+    problem.setType(TENANT_NOT_FOUND_TYPE);
+    problem.setTitle("Tenant not found");
+    problem.setProperty("code", "TENANT_NOT_FOUND");
+    return problem;
+  }
+
+  @ExceptionHandler(PlatformUserNotFoundException.class)
+  ProblemDetail handlePlatformUserNotFound(PlatformUserNotFoundException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+    problem.setType(PLATFORM_USER_NOT_FOUND_TYPE);
+    problem.setTitle("Platform user not found");
+    problem.setProperty("code", "PLATFORM_USER_NOT_FOUND");
+    return problem;
+  }
+
+  @ExceptionHandler(TenantNotActiveException.class)
+  ProblemDetail handleTenantNotActive(TenantNotActiveException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+    problem.setType(TENANT_NOT_ACTIVE_TYPE);
+    problem.setTitle("Tenant is not active");
+    problem.setProperty("code", "TENANT_NOT_ACTIVE");
+    return problem;
+  }
+
+  @ExceptionHandler(PlatformUserNotActiveException.class)
+  ProblemDetail handlePlatformUserNotActive(PlatformUserNotActiveException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+    problem.setType(PLATFORM_USER_NOT_ACTIVE_TYPE);
+    problem.setTitle("Platform user is not active");
+    problem.setProperty("code", "PLATFORM_USER_NOT_ACTIVE");
+    return problem;
+  }
+
+  @ExceptionHandler(TenantMembershipAlreadyExistsException.class)
+  ProblemDetail handleTenantMembershipAlreadyExists(
+      TenantMembershipAlreadyExistsException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+    problem.setType(TENANT_MEMBERSHIP_ALREADY_EXISTS_TYPE);
+    problem.setTitle("Tenant membership already exists");
+    problem.setProperty("code", "TENANT_MEMBERSHIP_ALREADY_EXISTS");
+    return problem;
   }
 
   public record FieldValidationError(String field, String message) {}
