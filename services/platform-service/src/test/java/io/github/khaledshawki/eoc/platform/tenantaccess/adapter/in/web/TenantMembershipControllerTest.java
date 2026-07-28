@@ -12,11 +12,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotFoundException;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadyActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadyExistsException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadySuspendedException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotFoundException;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ActivateTenantMembershipCommand;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ActivateTenantMembershipResult;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ActivateTenantMembershipUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantMembershipCommand;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantMembershipResult;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantMembershipUseCase;
@@ -53,6 +57,7 @@ class TenantMembershipControllerTest {
   private static final String ENDPOINT = "/api/v1/tenants/" + TENANT_ID + "/memberships";
   private static final String MEMBERSHIP_ENDPOINT = ENDPOINT + "/" + MEMBERSHIP_ID;
   private static final String SUSPENSION_ENDPOINT = MEMBERSHIP_ENDPOINT + "/suspension";
+  private static final String ACTIVATION_ENDPOINT = MEMBERSHIP_ENDPOINT + "/activation";
 
   private static final String VALID_REQUEST =
       """
@@ -68,6 +73,8 @@ class TenantMembershipControllerTest {
   @MockitoBean private GetTenantMembershipUseCase getTenantMembershipUseCase;
 
   @MockitoBean private SuspendTenantMembershipUseCase suspendTenantMembershipUseCase;
+
+  @MockitoBean private ActivateTenantMembershipUseCase activateTenantMembershipUseCase;
 
   @Test
   void shouldAssignTenantMembership() throws Exception {
@@ -476,5 +483,126 @@ class TenantMembershipControllerTest {
 
     verifyNoInteractions(assignTenantMembershipUseCase);
     verifyNoInteractions(getTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldActivateTenantMembership() throws Exception {
+    ActivateTenantMembershipCommand command =
+        new ActivateTenantMembershipCommand(TENANT_ID, MEMBERSHIP_ID);
+
+    ActivateTenantMembershipResult result =
+        new ActivateTenantMembershipResult(
+            TenantMembershipId.of(MEMBERSHIP_ID),
+            TenantId.of(TENANT_ID),
+            PlatformUserId.of(PLATFORM_USER_ID),
+            TenantMembershipStatus.ACTIVE);
+
+    when(activateTenantMembershipUseCase.activate(command)).thenReturn(result);
+
+    mockMvc
+        .perform(post(ACTIVATION_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
+        .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
+        .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+    verify(activateTenantMembershipUseCase).activate(command);
+
+    verifyNoInteractions(assignTenantMembershipUseCase);
+    verifyNoInteractions(getTenantMembershipUseCase);
+    verifyNoInteractions(suspendTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldReturnNotFoundWhenActivatingMembershipForMissingTenant() throws Exception {
+    ActivateTenantMembershipCommand command =
+        new ActivateTenantMembershipCommand(TENANT_ID, MEMBERSHIP_ID);
+
+    when(activateTenantMembershipUseCase.activate(command))
+        .thenThrow(new TenantNotFoundException(TenantId.of(TENANT_ID)));
+
+    mockMvc
+        .perform(post(ACTIVATION_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isNotFound())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:tenant-not-found"))
+        .andExpect(jsonPath("$.title").value("Tenant not found"))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.detail").value("Tenant " + TENANT_ID + " was not found"))
+        .andExpect(jsonPath("$.code").value("TENANT_NOT_FOUND"));
+
+    verify(activateTenantMembershipUseCase).activate(command);
+
+    verifyNoInteractions(assignTenantMembershipUseCase);
+    verifyNoInteractions(getTenantMembershipUseCase);
+    verifyNoInteractions(suspendTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldReturnNotFoundWhenActivatingUnknownTenantMembership() throws Exception {
+    ActivateTenantMembershipCommand command =
+        new ActivateTenantMembershipCommand(TENANT_ID, MEMBERSHIP_ID);
+
+    when(activateTenantMembershipUseCase.activate(command))
+        .thenThrow(
+            new TenantMembershipNotFoundException(
+                TenantId.of(TENANT_ID), TenantMembershipId.of(MEMBERSHIP_ID)));
+
+    mockMvc
+        .perform(post(ACTIVATION_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isNotFound())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:tenant-membership-not-found"))
+        .andExpect(jsonPath("$.title").value("Tenant membership not found"))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(
+            jsonPath("$.detail")
+                .value(
+                    "Tenant membership "
+                        + MEMBERSHIP_ID
+                        + " was not found for tenant "
+                        + TENANT_ID))
+        .andExpect(jsonPath("$.code").value("TENANT_MEMBERSHIP_NOT_FOUND"));
+
+    verify(activateTenantMembershipUseCase).activate(command);
+
+    verifyNoInteractions(assignTenantMembershipUseCase);
+    verifyNoInteractions(getTenantMembershipUseCase);
+    verifyNoInteractions(suspendTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldReturnConflictWhenTenantMembershipIsAlreadyActive() throws Exception {
+    ActivateTenantMembershipCommand command =
+        new ActivateTenantMembershipCommand(TENANT_ID, MEMBERSHIP_ID);
+
+    when(activateTenantMembershipUseCase.activate(command))
+        .thenThrow(
+            new TenantMembershipAlreadyActiveException(
+                TenantId.of(TENANT_ID), TenantMembershipId.of(MEMBERSHIP_ID)));
+
+    mockMvc
+        .perform(post(ACTIVATION_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isConflict())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:tenant-membership-already-active"))
+        .andExpect(jsonPath("$.title").value("Tenant membership already active"))
+        .andExpect(jsonPath("$.status").value(409))
+        .andExpect(
+            jsonPath("$.detail")
+                .value(
+                    "Tenant membership "
+                        + MEMBERSHIP_ID
+                        + " is already active for tenant "
+                        + TENANT_ID))
+        .andExpect(jsonPath("$.code").value("TENANT_MEMBERSHIP_ALREADY_ACTIVE"));
+
+    verify(activateTenantMembershipUseCase).activate(command);
+
+    verifyNoInteractions(assignTenantMembershipUseCase);
+    verifyNoInteractions(getTenantMembershipUseCase);
+    verifyNoInteractions(suspendTenantMembershipUseCase);
   }
 }
