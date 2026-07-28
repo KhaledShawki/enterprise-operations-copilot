@@ -3,6 +3,7 @@ package io.github.khaledshawki.eoc.platform.tenantaccess.adapter.in.web;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -12,11 +13,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadyExistsException;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantMembershipCommand;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantMembershipResult;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantMembershipUseCase;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipQuery;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipResult;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.PlatformUserId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipId;
@@ -50,9 +55,13 @@ class TenantMembershipControllerTest {
       }
       """;
 
+  private static final String MEMBERSHIP_ENDPOINT = ENDPOINT + "/" + MEMBERSHIP_ID;
+
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private AssignTenantMembershipUseCase assignTenantMembershipUseCase;
+
+  @MockitoBean private GetTenantMembershipUseCase getTenantMembershipUseCase;
 
   @Test
   void shouldAssignTenantMembership() throws Exception {
@@ -242,5 +251,107 @@ class TenantMembershipControllerTest {
         .andExpect(jsonPath("$.code").value("TENANT_MEMBERSHIP_ALREADY_EXISTS"));
 
     verify(assignTenantMembershipUseCase).assign(command);
+  }
+
+  @Test
+  void shouldGetActiveTenantMembership() throws Exception {
+    GetTenantMembershipQuery query = new GetTenantMembershipQuery(TENANT_ID, MEMBERSHIP_ID);
+
+    GetTenantMembershipResult result =
+        new GetTenantMembershipResult(
+            TenantMembershipId.of(MEMBERSHIP_ID),
+            TenantId.of(TENANT_ID),
+            PlatformUserId.of(PLATFORM_USER_ID),
+            TenantMembershipStatus.ACTIVE);
+
+    when(getTenantMembershipUseCase.get(query)).thenReturn(result);
+
+    mockMvc
+        .perform(get(MEMBERSHIP_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
+        .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
+        .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+    verify(getTenantMembershipUseCase).get(query);
+    verifyNoInteractions(assignTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldGetSuspendedTenantMembership() throws Exception {
+    GetTenantMembershipQuery query = new GetTenantMembershipQuery(TENANT_ID, MEMBERSHIP_ID);
+
+    GetTenantMembershipResult result =
+        new GetTenantMembershipResult(
+            TenantMembershipId.of(MEMBERSHIP_ID),
+            TenantId.of(TENANT_ID),
+            PlatformUserId.of(PLATFORM_USER_ID),
+            TenantMembershipStatus.SUSPENDED);
+
+    when(getTenantMembershipUseCase.get(query)).thenReturn(result);
+
+    mockMvc
+        .perform(get(MEMBERSHIP_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
+        .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
+        .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
+        .andExpect(jsonPath("$.status").value("SUSPENDED"));
+
+    verify(getTenantMembershipUseCase).get(query);
+    verifyNoInteractions(assignTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldReturnNotFoundWhenGettingMembershipForMissingTenant() throws Exception {
+    GetTenantMembershipQuery query = new GetTenantMembershipQuery(TENANT_ID, MEMBERSHIP_ID);
+
+    when(getTenantMembershipUseCase.get(query))
+        .thenThrow(new TenantNotFoundException(TenantId.of(TENANT_ID)));
+
+    mockMvc
+        .perform(get(MEMBERSHIP_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isNotFound())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:tenant-not-found"))
+        .andExpect(jsonPath("$.title").value("Tenant not found"))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.detail").value("Tenant " + TENANT_ID + " was not found"))
+        .andExpect(jsonPath("$.code").value("TENANT_NOT_FOUND"));
+
+    verify(getTenantMembershipUseCase).get(query);
+    verifyNoInteractions(assignTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldReturnNotFoundWhenGettingUnknownTenantMembership() throws Exception {
+    GetTenantMembershipQuery query = new GetTenantMembershipQuery(TENANT_ID, MEMBERSHIP_ID);
+
+    when(getTenantMembershipUseCase.get(query))
+        .thenThrow(
+            new TenantMembershipNotFoundException(
+                TenantId.of(TENANT_ID), TenantMembershipId.of(MEMBERSHIP_ID)));
+
+    mockMvc
+        .perform(get(MEMBERSHIP_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isNotFound())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:tenant-membership-not-found"))
+        .andExpect(jsonPath("$.title").value("Tenant membership not found"))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(
+            jsonPath("$.detail")
+                .value(
+                    "Tenant membership "
+                        + MEMBERSHIP_ID
+                        + " was not found for tenant "
+                        + TENANT_ID))
+        .andExpect(jsonPath("$.code").value("TENANT_MEMBERSHIP_NOT_FOUND"));
+
+    verify(getTenantMembershipUseCase).get(query);
+    verifyNoInteractions(assignTenantMembershipUseCase);
   }
 }
