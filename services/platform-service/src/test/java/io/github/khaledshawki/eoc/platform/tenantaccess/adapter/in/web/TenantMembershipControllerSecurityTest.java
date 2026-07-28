@@ -18,6 +18,9 @@ import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantM
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipQuery;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipResult;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipUseCase;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipCommand;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipResult;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.PlatformUserId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipId;
@@ -50,6 +53,7 @@ class TenantMembershipControllerSecurityTest {
 
   private static final String ENDPOINT = "/api/v1/tenants/" + TENANT_ID + "/memberships";
   private static final String MEMBERSHIP_ENDPOINT = ENDPOINT + "/" + MEMBERSHIP_ID;
+  private static final String SUSPENSION_ENDPOINT = MEMBERSHIP_ENDPOINT + "/suspension";
 
   private static final String PLATFORM_ADMIN_TOKEN = "platform-admin-token";
 
@@ -65,8 +69,8 @@ class TenantMembershipControllerSecurityTest {
   @MockitoBean private JwtDecoder jwtDecoder;
 
   @MockitoBean private AssignTenantMembershipUseCase assignTenantMembershipUseCase;
-
   @MockitoBean private GetTenantMembershipUseCase getTenantMembershipUseCase;
+  @MockitoBean private SuspendTenantMembershipUseCase suspendTenantMembershipUseCase;
 
   @Test
   void shouldRejectUnauthenticatedMembershipAssignment() throws Exception {
@@ -222,5 +226,91 @@ class TenantMembershipControllerSecurityTest {
 
     verify(getTenantMembershipUseCase).get(query);
     verifyNoInteractions(assignTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldRejectUnauthenticatedMembershipSuspension() throws Exception {
+    mockMvc
+        .perform(post(SUSPENSION_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isUnauthorized())
+        .andExpect(
+            header()
+                .string(HttpHeaders.WWW_AUTHENTICATE, org.hamcrest.Matchers.startsWith("Bearer")))
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:authentication-required"))
+        .andExpect(jsonPath("$.title").value("Authentication required"))
+        .andExpect(jsonPath("$.status").value(401))
+        .andExpect(
+            jsonPath("$.detail").value("Authentication is required to access this resource."))
+        .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
+
+    verifyNoInteractions(assignTenantMembershipUseCase);
+    verifyNoInteractions(getTenantMembershipUseCase);
+    verifyNoInteractions(suspendTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldRejectMembershipSuspensionWithoutPlatformAdminRole() throws Exception {
+    mockMvc
+        .perform(
+            post(SUSPENSION_ENDPOINT)
+                .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_profile")))
+                .accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isForbidden())
+        .andExpect(
+            header()
+                .string(HttpHeaders.WWW_AUTHENTICATE, org.hamcrest.Matchers.startsWith("Bearer")))
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:access-denied"))
+        .andExpect(jsonPath("$.title").value("Access denied"))
+        .andExpect(jsonPath("$.status").value(403))
+        .andExpect(
+            jsonPath("$.detail").value("You do not have permission to access this resource."))
+        .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+    verifyNoInteractions(assignTenantMembershipUseCase);
+    verifyNoInteractions(getTenantMembershipUseCase);
+    verifyNoInteractions(suspendTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldAllowMembershipSuspensionWithPlatformAdminRole() throws Exception {
+    SuspendTenantMembershipCommand command =
+        new SuspendTenantMembershipCommand(TENANT_ID, MEMBERSHIP_ID);
+
+    SuspendTenantMembershipResult result =
+        new SuspendTenantMembershipResult(
+            TenantMembershipId.of(MEMBERSHIP_ID),
+            TenantId.of(TENANT_ID),
+            PlatformUserId.of(PLATFORM_USER_ID),
+            TenantMembershipStatus.SUSPENDED);
+
+    Jwt platformAdminJwt =
+        Jwt.withTokenValue(PLATFORM_ADMIN_TOKEN)
+            .header("alg", "RS256")
+            .subject("user-123")
+            .claim("realm_access", Map.of("roles", List.of("platform-admin")))
+            .build();
+
+    when(jwtDecoder.decode(PLATFORM_ADMIN_TOKEN)).thenReturn(platformAdminJwt);
+
+    when(suspendTenantMembershipUseCase.suspend(command)).thenReturn(result);
+
+    mockMvc
+        .perform(
+            post(SUSPENSION_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + PLATFORM_ADMIN_TOKEN)
+                .accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
+        .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
+        .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
+        .andExpect(jsonPath("$.status").value("SUSPENDED"));
+
+    verify(suspendTenantMembershipUseCase).suspend(command);
+
+    verifyNoInteractions(assignTenantMembershipUseCase);
+    verifyNoInteractions(getTenantMembershipUseCase);
   }
 }

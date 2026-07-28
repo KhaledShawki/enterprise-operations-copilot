@@ -6,6 +6,9 @@ import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantM
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipQuery;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipResult;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipUseCase;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipCommand;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipResult;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipUseCase;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.Objects;
@@ -30,9 +33,12 @@ public class TenantMembershipController {
 
   private final GetTenantMembershipUseCase getTenantMembershipUseCase;
 
+  private final SuspendTenantMembershipUseCase suspendTenantMembershipUseCase;
+
   public TenantMembershipController(
       AssignTenantMembershipUseCase assignTenantMembershipUseCase,
-      GetTenantMembershipUseCase getTenantMembershipUseCase) {
+      GetTenantMembershipUseCase getTenantMembershipUseCase,
+      SuspendTenantMembershipUseCase suspendTenantMembershipUseCase) {
     this.assignTenantMembershipUseCase =
         Objects.requireNonNull(
             assignTenantMembershipUseCase, "Assign tenant membership use case cannot be null");
@@ -40,6 +46,10 @@ public class TenantMembershipController {
     this.getTenantMembershipUseCase =
         Objects.requireNonNull(
             getTenantMembershipUseCase, "Get tenant membership use case cannot be null");
+
+    this.suspendTenantMembershipUseCase =
+        Objects.requireNonNull(
+            suspendTenantMembershipUseCase, "Suspend tenant membership use case cannot be null");
   }
 
   @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -67,6 +77,18 @@ public class TenantMembershipController {
     GetTenantMembershipQuery query = new GetTenantMembershipQuery(tenantId, membershipId);
 
     GetTenantMembershipResult result = getTenantMembershipUseCase.get(query);
+
+    return TenantMembershipResponse.from(result);
+  }
+
+  @PostMapping("/{membershipId}/suspension")
+  public TenantMembershipResponse suspendTenantMembership(
+      @PathVariable UUID tenantId, @PathVariable UUID membershipId) {
+
+    SuspendTenantMembershipCommand command =
+        new SuspendTenantMembershipCommand(tenantId, membershipId);
+
+    SuspendTenantMembershipResult result = suspendTenantMembershipUseCase.suspend(command);
 
     return TenantMembershipResponse.from(result);
   }

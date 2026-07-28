@@ -4,6 +4,7 @@ import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUse
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantKeyAlreadyExistsException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadyExistsException;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadySuspendedException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotFoundException;
@@ -29,20 +30,17 @@ public class ApiExceptionHandler {
   private static final URI TENANT_KEY_ALREADY_EXISTS_TYPE =
       URI.create("urn:eoc:problem:tenant-key-already-exists");
   private static final URI TENANT_NOT_FOUND_TYPE = URI.create("urn:eoc:problem:tenant-not-found");
-
   private static final URI PLATFORM_USER_NOT_FOUND_TYPE =
       URI.create("urn:eoc:problem:platform-user-not-found");
-
   private static final URI TENANT_NOT_ACTIVE_TYPE = URI.create("urn:eoc:problem:tenant-not-active");
-
   private static final URI PLATFORM_USER_NOT_ACTIVE_TYPE =
       URI.create("urn:eoc:problem:platform-user-not-active");
-
   private static final URI TENANT_MEMBERSHIP_ALREADY_EXISTS_TYPE =
       URI.create("urn:eoc:problem:tenant-membership-already-exists");
-
   private static final URI TENANT_MEMBERSHIP_NOT_FOUND_TYPE =
       URI.create("urn:eoc:problem:tenant-membership-not-found");
+  private static final URI TENANT_MEMBERSHIP_ALREADY_SUSPENDED_TYPE =
+      URI.create("urn:eoc:problem:tenant-membership-already-suspended");
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ProblemDetail handleValidationFailure(MethodArgumentNotValidException exception) {
@@ -151,6 +149,21 @@ public class ApiExceptionHandler {
     problem.setType(TENANT_MEMBERSHIP_NOT_FOUND_TYPE);
     problem.setTitle("Tenant membership not found");
     problem.setProperty("code", "TENANT_MEMBERSHIP_NOT_FOUND");
+
+    return problem;
+  }
+
+  @ExceptionHandler(TenantMembershipAlreadySuspendedException.class)
+  ProblemDetail handleTenantMembershipAlreadySuspended(
+      TenantMembershipAlreadySuspendedException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+
+    problem.setType(TENANT_MEMBERSHIP_ALREADY_SUSPENDED_TYPE);
+
+    problem.setTitle("Tenant membership already suspended");
+
+    problem.setProperty("code", "TENANT_MEMBERSHIP_ALREADY_SUSPENDED");
 
     return problem;
   }

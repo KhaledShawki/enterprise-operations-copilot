@@ -44,7 +44,10 @@ public class SecurityConfiguration {
             authorization ->
                 authorization
                     .requestMatchers(
-                        HttpMethod.POST, "/api/v1/tenants", "/api/v1/tenants/*/memberships")
+                        HttpMethod.POST,
+                        "/api/v1/tenants",
+                        "/api/v1/tenants/*/memberships",
+                        "/api/v1/tenants/*/memberships/*/suspension")
                     .hasRole(PLATFORM_ADMIN_ROLE)
                     .requestMatchers(HttpMethod.GET, "/api/v1/tenants/*/memberships/*")
                     .hasRole(PLATFORM_ADMIN_ROLE)
