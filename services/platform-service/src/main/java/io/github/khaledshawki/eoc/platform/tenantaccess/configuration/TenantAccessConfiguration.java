@@ -4,6 +4,7 @@ import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ActivateTenan
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantMembershipUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.CreateTenantUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipUseCase;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ProvisionPlatformUserUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.PlatformUserRepository;
@@ -13,6 +14,7 @@ import io.github.khaledshawki.eoc.tenantaccess.application.service.ActivateTenan
 import io.github.khaledshawki.eoc.tenantaccess.application.service.AssignTenantMembershipService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.CreateTenantService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.GetTenantMembershipService;
+import io.github.khaledshawki.eoc.tenantaccess.application.service.GetTenantService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.ProvisionPlatformUserService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.SuspendTenantMembershipService;
 import org.springframework.context.annotation.Bean;
@@ -57,5 +59,10 @@ public class TenantAccessConfiguration {
   ActivateTenantMembershipUseCase activateTenantMembershipUseCase(
       TenantRepository tenantRepository, TenantMembershipRepository tenantMembershipRepository) {
     return new ActivateTenantMembershipService(tenantRepository, tenantMembershipRepository);
+  }
+
+  @Bean
+  GetTenantUseCase getTenantUseCase(TenantRepository tenantRepository) {
+    return new GetTenantService(tenantRepository);
   }
 }

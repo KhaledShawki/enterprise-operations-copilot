@@ -50,7 +50,8 @@ public class SecurityConfiguration {
                         "/api/v1/tenants/*/memberships/*/suspension",
                         "/api/v1/tenants/*/memberships/*/activation")
                     .hasRole(PLATFORM_ADMIN_ROLE)
-                    .requestMatchers(HttpMethod.GET, "/api/v1/tenants/*/memberships/*")
+                    .requestMatchers(
+                        HttpMethod.GET, "/api/v1/tenants/*", "/api/v1/tenants/*/memberships/*")
                     .hasRole(PLATFORM_ADMIN_ROLE)
                     .anyRequest()
                     .authenticated())
