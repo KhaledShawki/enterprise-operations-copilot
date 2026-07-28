@@ -3,6 +3,7 @@ package io.github.khaledshawki.eoc.platform.web.error;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantKeyAlreadyExistsException;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadyActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadyExistsException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadySuspendedException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipNotFoundException;
@@ -41,6 +42,8 @@ public class ApiExceptionHandler {
       URI.create("urn:eoc:problem:tenant-membership-not-found");
   private static final URI TENANT_MEMBERSHIP_ALREADY_SUSPENDED_TYPE =
       URI.create("urn:eoc:problem:tenant-membership-already-suspended");
+  private static final URI TENANT_MEMBERSHIP_ALREADY_ACTIVE_TYPE =
+      URI.create("urn:eoc:problem:tenant-membership-already-active");
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ProblemDetail handleValidationFailure(MethodArgumentNotValidException exception) {
@@ -164,6 +167,21 @@ public class ApiExceptionHandler {
     problem.setTitle("Tenant membership already suspended");
 
     problem.setProperty("code", "TENANT_MEMBERSHIP_ALREADY_SUSPENDED");
+
+    return problem;
+  }
+
+  @ExceptionHandler(TenantMembershipAlreadyActiveException.class)
+  ProblemDetail handleTenantMembershipAlreadyActive(
+      TenantMembershipAlreadyActiveException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+
+    problem.setType(TENANT_MEMBERSHIP_ALREADY_ACTIVE_TYPE);
+
+    problem.setTitle("Tenant membership already active");
+
+    problem.setProperty("code", "TENANT_MEMBERSHIP_ALREADY_ACTIVE");
 
     return problem;
   }
