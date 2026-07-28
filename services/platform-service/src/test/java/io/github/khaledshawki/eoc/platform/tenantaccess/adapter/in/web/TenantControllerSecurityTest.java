@@ -17,6 +17,9 @@ import io.github.khaledshawki.eoc.platform.security.configuration.SecurityConfig
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.CreateTenantCommand;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.CreateTenantResult;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.CreateTenantUseCase;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantQuery;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantResult;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
@@ -56,11 +59,14 @@ class TenantControllerSecurityTest {
       }
       """;
 
+  private static final String TENANT_ENDPOINT = TENANTS_ENDPOINT + "/" + TENANT_ID;
+
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private JwtDecoder jwtDecoder;
 
   @MockitoBean private CreateTenantUseCase createTenantUseCase;
+  @MockitoBean private GetTenantUseCase getTenantUseCase;
 
   @Test
   void shouldRejectUnauthenticatedTenantCreation() throws Exception {
@@ -196,5 +202,85 @@ class TenantControllerSecurityTest {
         .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
 
     verifyNoInteractions(jwtDecoder, createTenantUseCase);
+  }
+
+  @Test
+  void shouldRejectUnauthenticatedTenantQuery() throws Exception {
+    mockMvc
+        .perform(get(TENANT_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isUnauthorized())
+        .andExpect(
+            header()
+                .string(HttpHeaders.WWW_AUTHENTICATE, org.hamcrest.Matchers.startsWith("Bearer")))
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:authentication-required"))
+        .andExpect(jsonPath("$.title").value("Authentication required"))
+        .andExpect(jsonPath("$.status").value(401))
+        .andExpect(
+            jsonPath("$.detail").value("Authentication is required to access this resource."))
+        .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
+
+    verifyNoInteractions(createTenantUseCase, getTenantUseCase);
+  }
+
+  @Test
+  void shouldRejectTenantQueryWithoutPlatformAdminRole() throws Exception {
+    mockMvc
+        .perform(
+            get(TENANT_ENDPOINT)
+                .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_profile")))
+                .accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isForbidden())
+        .andExpect(
+            header()
+                .string(HttpHeaders.WWW_AUTHENTICATE, org.hamcrest.Matchers.startsWith("Bearer")))
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:access-denied"))
+        .andExpect(jsonPath("$.title").value("Access denied"))
+        .andExpect(jsonPath("$.status").value(403))
+        .andExpect(
+            jsonPath("$.detail").value("You do not have permission to access this resource."))
+        .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+    verifyNoInteractions(createTenantUseCase, getTenantUseCase);
+  }
+
+  @Test
+  void shouldAllowTenantQueryWithPlatformAdminRole() throws Exception {
+    GetTenantQuery query = new GetTenantQuery(TENANT_ID);
+
+    GetTenantResult result =
+        new GetTenantResult(
+            TenantId.of(TENANT_ID),
+            TenantKey.of("tenant-key"),
+            TenantName.of("Tenant Name"),
+            TenantStatus.ACTIVE);
+
+    Jwt platformAdminJwt =
+        Jwt.withTokenValue(PLATFORM_ADMIN_TOKEN)
+            .header("alg", "RS256")
+            .subject("user-123")
+            .claim("realm_access", Map.of("roles", List.of("platform-admin")))
+            .build();
+
+    when(jwtDecoder.decode(PLATFORM_ADMIN_TOKEN)).thenReturn(platformAdminJwt);
+
+    when(getTenantUseCase.get(query)).thenReturn(result);
+
+    mockMvc
+        .perform(
+            get(TENANT_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + PLATFORM_ADMIN_TOKEN)
+                .accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(TENANT_ID.toString()))
+        .andExpect(jsonPath("$.tenantKey").value("tenant-key"))
+        .andExpect(jsonPath("$.displayName").value("Tenant Name"))
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+    verify(getTenantUseCase).get(query);
+
+    verifyNoInteractions(createTenantUseCase);
   }
 }
