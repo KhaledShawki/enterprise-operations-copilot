@@ -4,6 +4,7 @@ import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUse
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantKeyAlreadyExistsException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadyExistsException;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotFoundException;
 import java.net.URI;
@@ -39,6 +40,9 @@ public class ApiExceptionHandler {
 
   private static final URI TENANT_MEMBERSHIP_ALREADY_EXISTS_TYPE =
       URI.create("urn:eoc:problem:tenant-membership-already-exists");
+
+  private static final URI TENANT_MEMBERSHIP_NOT_FOUND_TYPE =
+      URI.create("urn:eoc:problem:tenant-membership-not-found");
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ProblemDetail handleValidationFailure(MethodArgumentNotValidException exception) {
@@ -136,6 +140,18 @@ public class ApiExceptionHandler {
     problem.setType(TENANT_MEMBERSHIP_ALREADY_EXISTS_TYPE);
     problem.setTitle("Tenant membership already exists");
     problem.setProperty("code", "TENANT_MEMBERSHIP_ALREADY_EXISTS");
+    return problem;
+  }
+
+  @ExceptionHandler(TenantMembershipNotFoundException.class)
+  ProblemDetail handleTenantMembershipNotFound(TenantMembershipNotFoundException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+
+    problem.setType(TENANT_MEMBERSHIP_NOT_FOUND_TYPE);
+    problem.setTitle("Tenant membership not found");
+    problem.setProperty("code", "TENANT_MEMBERSHIP_NOT_FOUND");
+
     return problem;
   }
 
