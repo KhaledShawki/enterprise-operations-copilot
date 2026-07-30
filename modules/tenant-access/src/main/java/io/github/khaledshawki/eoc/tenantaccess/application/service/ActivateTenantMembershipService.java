@@ -57,6 +57,7 @@ public final class ActivateTenantMembershipService implements ActivateTenantMemb
         savedMembership.id(),
         savedMembership.tenantId(),
         savedMembership.userId(),
-        savedMembership.status());
+        savedMembership.status(),
+        savedMembership.roles());
   }
 }

@@ -74,6 +74,10 @@ public final class ListAccessibleTenantsService implements ListAccessibleTenants
 
   private static AccessibleTenantResult toResult(AccessibleTenantProjection projection) {
     return new AccessibleTenantResult(
-        projection.membershipId(), projection.tenantId(), projection.key(), projection.name());
+        projection.membershipId(),
+        projection.tenantId(),
+        projection.key(),
+        projection.name(),
+        projection.roles());
   }
 }

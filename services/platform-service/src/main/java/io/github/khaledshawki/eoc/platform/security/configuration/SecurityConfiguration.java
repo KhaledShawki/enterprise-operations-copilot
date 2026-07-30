@@ -53,6 +53,8 @@ public class SecurityConfiguration {
                     .requestMatchers(
                         HttpMethod.GET, "/api/v1/tenants/*", "/api/v1/tenants/*/memberships/*")
                     .hasRole(PLATFORM_ADMIN_ROLE)
+                    .requestMatchers(HttpMethod.PUT, "/api/v1/tenants/*/memberships/*/roles")
+                    .hasRole(PLATFORM_ADMIN_ROLE)
                     .anyRequest()
                     .authenticated())
         .oauth2ResourceServer(

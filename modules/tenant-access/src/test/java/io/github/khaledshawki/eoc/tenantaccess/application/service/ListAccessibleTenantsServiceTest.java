@@ -20,12 +20,14 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipStatus;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
+import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantStatus;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,12 @@ class ListAccessibleTenantsServiceTest {
 
   private static final PlatformUserId PLATFORM_USER_ID =
       PlatformUserId.of(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+
+  private static final Set<TenantRoleKey> ALPHA_ROLES =
+      Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor"));
+
+  private static final Set<TenantRoleKey> BETA_ROLES =
+      Set.of(TenantRoleKey.of("operations-manager"));
 
   private InMemoryPlatformUserRepository platformUserRepository;
 
@@ -68,7 +76,8 @@ class ListAccessibleTenantsServiceTest {
             "beta",
             "Beta Tenant",
             TenantStatus.ACTIVE,
-            TenantMembershipStatus.ACTIVE);
+            TenantMembershipStatus.ACTIVE,
+            BETA_ROLES);
 
     AccessibleTenantProjection suspendedMembership =
         projection(
@@ -95,7 +104,8 @@ class ListAccessibleTenantsServiceTest {
             "alpha",
             "Alpha Tenant",
             TenantStatus.ACTIVE,
-            TenantMembershipStatus.ACTIVE);
+            TenantMembershipStatus.ACTIVE,
+            ALPHA_ROLES);
 
     accessibleTenantQueryRepository.setProjections(
         List.of(betaTenant, suspendedMembership, suspendedTenant, alphaTenant));
@@ -244,13 +254,36 @@ class ListAccessibleTenantsServiceTest {
         TenantKey.of(key),
         TenantName.of(name),
         tenantStatus,
-        membershipStatus);
+        membershipStatus,
+        Set.of());
+  }
+
+  private static AccessibleTenantProjection projection(
+      String membershipId,
+      String tenantId,
+      String key,
+      String name,
+      TenantStatus tenantStatus,
+      TenantMembershipStatus membershipStatus,
+      Set<TenantRoleKey> roles) {
+    return new AccessibleTenantProjection(
+        TenantMembershipId.of(UUID.fromString(membershipId)),
+        TenantId.of(UUID.fromString(tenantId)),
+        TenantKey.of(key),
+        TenantName.of(name),
+        tenantStatus,
+        membershipStatus,
+        roles);
   }
 
   private static AccessibleTenantResult accessibleTenantResult(
       AccessibleTenantProjection projection) {
     return new AccessibleTenantResult(
-        projection.membershipId(), projection.tenantId(), projection.key(), projection.name());
+        projection.membershipId(),
+        projection.tenantId(),
+        projection.key(),
+        projection.name(),
+        projection.roles());
   }
 
   private static final class InMemoryPlatformUserRepository implements PlatformUserRepository {

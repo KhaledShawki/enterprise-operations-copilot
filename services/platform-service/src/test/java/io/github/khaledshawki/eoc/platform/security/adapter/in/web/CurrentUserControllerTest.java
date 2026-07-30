@@ -1,6 +1,7 @@
 package io.github.khaledshawki.eoc.platform.security.adapter.in.web;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -24,8 +25,10 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
+import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,6 +72,11 @@ class CurrentUserControllerTest {
   private static final UUID BETA_TENANT_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000202");
 
+  private static final Set<TenantRoleKey> ALPHA_ROLES =
+      Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor"));
+
+  private static final Set<TenantRoleKey> BETA_ROLES =
+      Set.of(TenantRoleKey.of("operations-manager"));
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private JwtDecoder jwtDecoder;
@@ -100,9 +108,10 @@ class CurrentUserControllerTest {
     ListAccessibleTenantsResult result =
         new ListAccessibleTenantsResult(
             List.of(
-                accessibleTenant(ALPHA_MEMBERSHIP_ID, ALPHA_TENANT_ID, "alpha", "Alpha Tenant"),
-                accessibleTenant(BETA_MEMBERSHIP_ID, BETA_TENANT_ID, "beta", "Beta Tenant")));
-
+                accessibleTenant(
+                    ALPHA_MEMBERSHIP_ID, ALPHA_TENANT_ID, "alpha", "Alpha Tenant", ALPHA_ROLES),
+                accessibleTenant(
+                    BETA_MEMBERSHIP_ID, BETA_TENANT_ID, "beta", "Beta Tenant", BETA_ROLES)));
     when(jwtDecoder.decode(ORDINARY_USER_ACCESS_TOKEN)).thenReturn(ordinaryUserJwt());
 
     when(listAccessibleTenantsUseCase.list(query)).thenReturn(result);
@@ -121,10 +130,16 @@ class CurrentUserControllerTest {
         .andExpect(jsonPath("$.tenants[0].tenantId").value(ALPHA_TENANT_ID.toString()))
         .andExpect(jsonPath("$.tenants[0].tenantKey").value("alpha"))
         .andExpect(jsonPath("$.tenants[0].displayName").value("Alpha Tenant"))
+        .andExpect(jsonPath("$.tenants[0].roles.length()").value(2))
+        .andExpect(
+            jsonPath("$.tenants[0].roles").value(containsInAnyOrder("tenant-admin", "auditor")))
         .andExpect(jsonPath("$.tenants[1].membershipId").value(BETA_MEMBERSHIP_ID.toString()))
         .andExpect(jsonPath("$.tenants[1].tenantId").value(BETA_TENANT_ID.toString()))
         .andExpect(jsonPath("$.tenants[1].tenantKey").value("beta"))
-        .andExpect(jsonPath("$.tenants[1].displayName").value("Beta Tenant"));
+        .andExpect(jsonPath("$.tenants[1].displayName").value("Beta Tenant"))
+        .andExpect(jsonPath("$.tenants[1].roles.length()").value(1))
+        .andExpect(jsonPath("$.tenants[1].roles").value(containsInAnyOrder("operations-manager")));
+    ;
 
     verify(jwtDecoder).decode(ORDINARY_USER_ACCESS_TOKEN);
 
@@ -231,12 +246,17 @@ class CurrentUserControllerTest {
   }
 
   private static AccessibleTenantResult accessibleTenant(
-      UUID membershipId, UUID tenantId, String tenantKey, String displayName) {
+      UUID membershipId,
+      UUID tenantId,
+      String tenantKey,
+      String displayName,
+      Set<TenantRoleKey> roles) {
     return new AccessibleTenantResult(
         TenantMembershipId.of(membershipId),
         TenantId.of(tenantId),
         TenantKey.of(tenantKey),
-        TenantName.of(displayName));
+        TenantName.of(displayName),
+        roles);
   }
 
   private static Jwt jwt() {

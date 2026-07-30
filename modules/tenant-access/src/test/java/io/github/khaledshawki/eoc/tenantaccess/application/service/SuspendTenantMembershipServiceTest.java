@@ -20,9 +20,11 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembership;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipStatus;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
+import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,8 +51,11 @@ class SuspendTenantMembershipServiceTest {
   void shouldSuspendAndPersistActiveTenantMembership() {
     Tenant tenant = storeTenant("tenant-one");
 
-    TenantMembership membership =
-        storeMembership(TenantMembership.create(tenant.id(), PLATFORM_USER_ID));
+    TenantMembership membership = TenantMembership.create(tenant.id(), PLATFORM_USER_ID);
+
+    membership.replaceRoles(Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor")));
+
+    storeMembership(membership);
 
     SuspendTenantMembershipResult result =
         service.suspend(
@@ -61,7 +66,8 @@ class SuspendTenantMembershipServiceTest {
         () -> assertEquals(tenant.id(), result.tenantId()),
         () -> assertEquals(PLATFORM_USER_ID, result.platformUserId()),
         () -> assertEquals(TenantMembershipStatus.SUSPENDED, result.status()),
-        () -> assertEquals(TenantMembershipStatus.SUSPENDED, membership.status()));
+        () -> assertEquals(TenantMembershipStatus.SUSPENDED, membership.status()),
+        () -> assertEquals(membership.roles(), result.roles()));
 
     assertEquals(1, tenantRepository.findByIdCalls());
     assertEquals(1, membershipRepository.findByIdCalls());

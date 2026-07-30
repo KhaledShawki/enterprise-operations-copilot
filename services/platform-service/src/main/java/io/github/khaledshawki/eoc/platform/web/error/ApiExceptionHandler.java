@@ -1,5 +1,6 @@
 package io.github.khaledshawki.eoc.platform.web.error;
 
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.InvalidTenantRoleKeyException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantKeyAlreadyExistsException;
@@ -44,6 +45,8 @@ public class ApiExceptionHandler {
       URI.create("urn:eoc:problem:tenant-membership-already-suspended");
   private static final URI TENANT_MEMBERSHIP_ALREADY_ACTIVE_TYPE =
       URI.create("urn:eoc:problem:tenant-membership-already-active");
+  private static final URI INVALID_TENANT_ROLE_KEY_TYPE =
+      URI.create("urn:eoc:problem:invalid-tenant-role-key");
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ProblemDetail handleValidationFailure(MethodArgumentNotValidException exception) {
@@ -182,6 +185,20 @@ public class ApiExceptionHandler {
     problem.setTitle("Tenant membership already active");
 
     problem.setProperty("code", "TENANT_MEMBERSHIP_ALREADY_ACTIVE");
+
+    return problem;
+  }
+
+  @ExceptionHandler(InvalidTenantRoleKeyException.class)
+  ProblemDetail handleInvalidTenantRoleKey(InvalidTenantRoleKeyException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+
+    problem.setType(INVALID_TENANT_ROLE_KEY_TYPE);
+
+    problem.setTitle("Invalid tenant role key");
+
+    problem.setProperty("code", "INVALID_TENANT_ROLE_KEY");
 
     return problem;
   }

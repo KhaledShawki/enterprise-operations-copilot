@@ -57,6 +57,7 @@ public final class SuspendTenantMembershipService implements SuspendTenantMember
         savedMembership.id(),
         savedMembership.tenantId(),
         savedMembership.userId(),
-        savedMembership.status());
+        savedMembership.status(),
+        savedMembership.roles());
   }
 }

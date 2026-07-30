@@ -7,10 +7,12 @@ import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMemb
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ListAccessibleTenantsUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ProvisionPlatformUserUseCase;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ReplaceTenantMembershipRolesUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.AccessibleTenantQueryRepository;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.PlatformUserRepository;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.TenantMembershipRepository;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.out.TenantMembershipRoleWriteRepository;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.TenantRepository;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.ActivateTenantMembershipService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.AssignTenantMembershipService;
@@ -19,6 +21,7 @@ import io.github.khaledshawki.eoc.tenantaccess.application.service.GetTenantMemb
 import io.github.khaledshawki.eoc.tenantaccess.application.service.GetTenantService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.ListAccessibleTenantsService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.ProvisionPlatformUserService;
+import io.github.khaledshawki.eoc.tenantaccess.application.service.ReplaceTenantMembershipRolesService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.SuspendTenantMembershipService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -75,5 +78,14 @@ public class TenantAccessConfiguration {
       AccessibleTenantQueryRepository accessibleTenantQueryRepository) {
     return new ListAccessibleTenantsService(
         platformUserRepository, accessibleTenantQueryRepository);
+  }
+
+  @Bean
+  ReplaceTenantMembershipRolesUseCase replaceTenantMembershipRolesUseCase(
+      TenantRepository tenantRepository,
+      TenantMembershipRepository tenantMembershipRepository,
+      TenantMembershipRoleWriteRepository tenantMembershipRoleWriteRepository) {
+    return new ReplaceTenantMembershipRolesService(
+        tenantRepository, tenantMembershipRepository, tenantMembershipRoleWriteRepository);
   }
 }

@@ -16,8 +16,10 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembership;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipStatus;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
+import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantStatus;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +44,14 @@ class AccessibleTenantQueryPersistenceAdapterIT {
 
   @Autowired private SpringDataTenantRepository springDataTenantRepository;
 
+  private static final Set<TenantRoleKey> ALPHA_ROLES =
+      Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor"));
+
+  private static final Set<TenantRoleKey> BETA_ROLES =
+      Set.of(TenantRoleKey.of("operations-manager"));
+
+  private static final Set<TenantRoleKey> SUSPENDED_ROLES = Set.of(TenantRoleKey.of("auditor"));
+
   @BeforeEach
   void setUp() {
     springDataMembershipRepository.deleteAllInBatch();
@@ -62,15 +72,18 @@ class AccessibleTenantQueryPersistenceAdapterIT {
     Tenant suspendedTenant = createTenant("suspended-tenant", "Suspended Tenant");
 
     suspendedTenant.suspend();
+
     tenantRepository.save(suspendedTenant);
 
-    TenantMembership betaMembership = createMembership(betaTenant, requestedUser);
+    TenantMembership betaMembership = createMembership(betaTenant, requestedUser, BETA_ROLES);
 
-    TenantMembership alphaMembership = createMembership(alphaTenant, requestedUser);
+    TenantMembership alphaMembership = createMembership(alphaTenant, requestedUser, ALPHA_ROLES);
 
-    TenantMembership suspendedMembership = createMembership(suspendedTenant, requestedUser);
+    TenantMembership suspendedMembership =
+        createMembership(suspendedTenant, requestedUser, SUSPENDED_ROLES);
 
     suspendedMembership.suspend();
+
     tenantMembershipRepository.save(suspendedMembership);
 
     createMembership(betaTenant, otherUser);
@@ -138,7 +151,16 @@ class AccessibleTenantQueryPersistenceAdapterIT {
   }
 
   private TenantMembership createMembership(Tenant tenant, PlatformUser platformUser) {
-    return tenantMembershipRepository.save(TenantMembership.create(tenant.id(), platformUser.id()));
+    return createMembership(tenant, platformUser, Set.of());
+  }
+
+  private TenantMembership createMembership(
+      Tenant tenant, PlatformUser platformUser, Set<TenantRoleKey> roles) {
+    TenantMembership membership = TenantMembership.create(tenant.id(), platformUser.id());
+
+    membership.replaceRoles(roles);
+
+    return tenantMembershipRepository.save(membership);
   }
 
   private static void assertProjection(
@@ -158,5 +180,7 @@ class AccessibleTenantQueryPersistenceAdapterIT {
     assertEquals(tenantStatus, projection.tenantStatus());
 
     assertEquals(membershipStatus, projection.membershipStatus());
+
+    assertEquals(membership.roles(), projection.roles());
   }
 }

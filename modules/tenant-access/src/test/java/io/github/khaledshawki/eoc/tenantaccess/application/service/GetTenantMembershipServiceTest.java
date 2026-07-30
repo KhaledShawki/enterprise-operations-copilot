@@ -18,9 +18,11 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembership;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipStatus;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
+import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,8 +49,11 @@ class GetTenantMembershipServiceTest {
   void shouldReturnActiveTenantMembership() {
     Tenant tenant = saveTenant("tenant-one");
 
-    TenantMembership membership =
-        membershipRepository.save(TenantMembership.create(tenant.id(), PLATFORM_USER_ID));
+    TenantMembership membership = TenantMembership.create(tenant.id(), PLATFORM_USER_ID);
+
+    membership.replaceRoles(Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor")));
+
+    membershipRepository.save(membership);
 
     GetTenantMembershipResult result =
         service.get(new GetTenantMembershipQuery(tenant.id().value(), membership.id().value()));
@@ -57,7 +62,8 @@ class GetTenantMembershipServiceTest {
         () -> assertEquals(membership.id(), result.membershipId()),
         () -> assertEquals(tenant.id(), result.tenantId()),
         () -> assertEquals(PLATFORM_USER_ID, result.platformUserId()),
-        () -> assertEquals(TenantMembershipStatus.ACTIVE, result.status()));
+        () -> assertEquals(TenantMembershipStatus.ACTIVE, result.status()),
+        () -> assertEquals(membership.roles(), result.roles()));
 
     assertEquals(1, tenantRepository.findByIdCalls());
     assertEquals(1, membershipRepository.findByIdCalls());
