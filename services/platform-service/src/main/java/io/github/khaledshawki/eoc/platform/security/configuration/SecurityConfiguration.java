@@ -28,6 +28,8 @@ public class SecurityConfiguration {
   private static final String PLATFORM_ADMIN_ROLE = "platform-admin";
   private static final String REALM_ROLES_EXPRESSION = "[realm_access][roles]";
   private static final String ROLE_AUTHORITY_PREFIX = "ROLE_";
+  private static final String LIVENESS_ENDPOINT = "/actuator/health/liveness";
+  private static final String READINESS_ENDPOINT = "/actuator/health/readiness";
 
   @Bean
   SecurityFilterChain apiSecurityFilterChain(
@@ -43,6 +45,8 @@ public class SecurityConfiguration {
         .authorizeHttpRequests(
             authorization ->
                 authorization
+                    .requestMatchers(HttpMethod.GET, LIVENESS_ENDPOINT, READINESS_ENDPOINT)
+                    .permitAll()
                     .requestMatchers(
                         HttpMethod.POST,
                         "/api/v1/tenants",
