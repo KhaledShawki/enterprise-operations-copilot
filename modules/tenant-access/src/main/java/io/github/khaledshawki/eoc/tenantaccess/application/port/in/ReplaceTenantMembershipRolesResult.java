@@ -8,26 +8,28 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
 import java.util.Objects;
 import java.util.Set;
 
-public record ActivateTenantMembershipResult(
+public record ReplaceTenantMembershipRolesResult(
     TenantMembershipId membershipId,
     TenantId tenantId,
     PlatformUserId platformUserId,
     TenantMembershipStatus status,
     Set<TenantRoleKey> roles) {
 
-  public ActivateTenantMembershipResult {
+  public ReplaceTenantMembershipRolesResult {
     Objects.requireNonNull(membershipId, "Tenant membership id cannot be null");
-    Objects.requireNonNull(tenantId, "Tenant id cannot be null");
-    Objects.requireNonNull(platformUserId, "Platform user id cannot be null");
-    Objects.requireNonNull(status, "Tenant membership status cannot be null");
-    roles = Set.copyOf(Objects.requireNonNull(roles, "Tenant membership roles cannot be null"));
-  }
 
-  public ActivateTenantMembershipResult(
-      TenantMembershipId membershipId,
-      TenantId tenantId,
-      PlatformUserId platformUserId,
-      TenantMembershipStatus status) {
-    this(membershipId, tenantId, platformUserId, status, Set.of());
+    Objects.requireNonNull(tenantId, "Tenant id cannot be null");
+
+    Objects.requireNonNull(platformUserId, "Platform user id cannot be null");
+
+    Objects.requireNonNull(status, "Tenant membership status cannot be null");
+
+    Objects.requireNonNull(roles, "Tenant membership roles cannot be null");
+
+    if (roles.stream().anyMatch(Objects::isNull)) {
+      throw new IllegalArgumentException("Tenant membership roles cannot contain null values");
+    }
+
+    roles = Set.copyOf(roles);
   }
 }

@@ -1,10 +1,12 @@
 package io.github.khaledshawki.eoc.platform.tenantaccess.adapter.in.web;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -27,6 +29,9 @@ import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantM
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipQuery;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipResult;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipUseCase;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ReplaceTenantMembershipRolesCommand;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ReplaceTenantMembershipRolesResult;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ReplaceTenantMembershipRolesUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipCommand;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipResult;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipUseCase;
@@ -34,6 +39,8 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.PlatformUserId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipStatus;
+import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +65,7 @@ class TenantMembershipControllerTest {
   private static final String MEMBERSHIP_ENDPOINT = ENDPOINT + "/" + MEMBERSHIP_ID;
   private static final String SUSPENSION_ENDPOINT = MEMBERSHIP_ENDPOINT + "/suspension";
   private static final String ACTIVATION_ENDPOINT = MEMBERSHIP_ENDPOINT + "/activation";
+  private static final String ROLES_ENDPOINT = MEMBERSHIP_ENDPOINT + "/roles";
 
   private static final String VALID_REQUEST =
       """
@@ -66,15 +74,16 @@ class TenantMembershipControllerTest {
       }
       """;
 
+  private static final Set<TenantRoleKey> MEMBERSHIP_ROLES =
+      Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor"));
+
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private AssignTenantMembershipUseCase assignTenantMembershipUseCase;
-
   @MockitoBean private GetTenantMembershipUseCase getTenantMembershipUseCase;
-
   @MockitoBean private SuspendTenantMembershipUseCase suspendTenantMembershipUseCase;
-
   @MockitoBean private ActivateTenantMembershipUseCase activateTenantMembershipUseCase;
+  @MockitoBean private ReplaceTenantMembershipRolesUseCase replaceTenantMembershipRolesUseCase;
 
   @Test
   void shouldAssignTenantMembership() throws Exception {
@@ -86,7 +95,8 @@ class TenantMembershipControllerTest {
             TenantMembershipId.of(MEMBERSHIP_ID),
             TenantId.of(TENANT_ID),
             PlatformUserId.of(PLATFORM_USER_ID),
-            TenantMembershipStatus.ACTIVE);
+            TenantMembershipStatus.ACTIVE,
+            MEMBERSHIP_ROLES);
 
     when(assignTenantMembershipUseCase.assign(command)).thenReturn(result);
 
@@ -109,7 +119,9 @@ class TenantMembershipControllerTest {
         .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
         .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
         .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
-        .andExpect(jsonPath("$.status").value("ACTIVE"));
+        .andExpect(jsonPath("$.status").value("ACTIVE"))
+        .andExpect(jsonPath("$.roles.length()").value(2))
+        .andExpect(jsonPath("$.roles").value(containsInAnyOrder("tenant-admin", "auditor")));
 
     verify(assignTenantMembershipUseCase).assign(command);
   }
@@ -275,7 +287,8 @@ class TenantMembershipControllerTest {
             TenantMembershipId.of(MEMBERSHIP_ID),
             TenantId.of(TENANT_ID),
             PlatformUserId.of(PLATFORM_USER_ID),
-            TenantMembershipStatus.ACTIVE);
+            TenantMembershipStatus.ACTIVE,
+            MEMBERSHIP_ROLES);
 
     when(getTenantMembershipUseCase.get(query)).thenReturn(result);
 
@@ -286,7 +299,9 @@ class TenantMembershipControllerTest {
         .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
         .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
         .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
-        .andExpect(jsonPath("$.status").value("ACTIVE"));
+        .andExpect(jsonPath("$.status").value("ACTIVE"))
+        .andExpect(jsonPath("$.roles.length()").value(2))
+        .andExpect(jsonPath("$.roles").value(containsInAnyOrder("tenant-admin", "auditor")));
 
     verify(getTenantMembershipUseCase).get(query);
     verifyNoInteractions(assignTenantMembershipUseCase);
@@ -301,7 +316,8 @@ class TenantMembershipControllerTest {
             TenantMembershipId.of(MEMBERSHIP_ID),
             TenantId.of(TENANT_ID),
             PlatformUserId.of(PLATFORM_USER_ID),
-            TenantMembershipStatus.SUSPENDED);
+            TenantMembershipStatus.SUSPENDED,
+            MEMBERSHIP_ROLES);
 
     when(getTenantMembershipUseCase.get(query)).thenReturn(result);
 
@@ -312,7 +328,9 @@ class TenantMembershipControllerTest {
         .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
         .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
         .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
-        .andExpect(jsonPath("$.status").value("SUSPENDED"));
+        .andExpect(jsonPath("$.status").value("SUSPENDED"))
+        .andExpect(jsonPath("$.roles.length()").value(2))
+        .andExpect(jsonPath("$.roles").value(containsInAnyOrder("tenant-admin", "auditor")));
 
     verify(getTenantMembershipUseCase).get(query);
     verifyNoInteractions(assignTenantMembershipUseCase);
@@ -378,7 +396,8 @@ class TenantMembershipControllerTest {
             TenantMembershipId.of(MEMBERSHIP_ID),
             TenantId.of(TENANT_ID),
             PlatformUserId.of(PLATFORM_USER_ID),
-            TenantMembershipStatus.SUSPENDED);
+            TenantMembershipStatus.SUSPENDED,
+            MEMBERSHIP_ROLES);
 
     when(suspendTenantMembershipUseCase.suspend(command)).thenReturn(result);
 
@@ -389,7 +408,9 @@ class TenantMembershipControllerTest {
         .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
         .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
         .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
-        .andExpect(jsonPath("$.status").value("SUSPENDED"));
+        .andExpect(jsonPath("$.status").value("SUSPENDED"))
+        .andExpect(jsonPath("$.roles.length()").value(2))
+        .andExpect(jsonPath("$.roles").value(containsInAnyOrder("tenant-admin", "auditor")));
 
     verify(suspendTenantMembershipUseCase).suspend(command);
 
@@ -495,7 +516,8 @@ class TenantMembershipControllerTest {
             TenantMembershipId.of(MEMBERSHIP_ID),
             TenantId.of(TENANT_ID),
             PlatformUserId.of(PLATFORM_USER_ID),
-            TenantMembershipStatus.ACTIVE);
+            TenantMembershipStatus.ACTIVE,
+            MEMBERSHIP_ROLES);
 
     when(activateTenantMembershipUseCase.activate(command)).thenReturn(result);
 
@@ -506,7 +528,9 @@ class TenantMembershipControllerTest {
         .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
         .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
         .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
-        .andExpect(jsonPath("$.status").value("ACTIVE"));
+        .andExpect(jsonPath("$.status").value("ACTIVE"))
+        .andExpect(jsonPath("$.roles.length()").value(2))
+        .andExpect(jsonPath("$.roles").value(containsInAnyOrder("tenant-admin", "auditor")));
 
     verify(activateTenantMembershipUseCase).activate(command);
 
@@ -604,5 +628,124 @@ class TenantMembershipControllerTest {
     verifyNoInteractions(assignTenantMembershipUseCase);
     verifyNoInteractions(getTenantMembershipUseCase);
     verifyNoInteractions(suspendTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldReplaceTenantMembershipRoles() throws Exception {
+    ReplaceTenantMembershipRolesCommand command =
+        new ReplaceTenantMembershipRolesCommand(
+            TENANT_ID, MEMBERSHIP_ID, Set.of("tenant-admin", "auditor"));
+
+    ReplaceTenantMembershipRolesResult result =
+        new ReplaceTenantMembershipRolesResult(
+            TenantMembershipId.of(MEMBERSHIP_ID),
+            TenantId.of(TENANT_ID),
+            PlatformUserId.of(PLATFORM_USER_ID),
+            TenantMembershipStatus.ACTIVE,
+            Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor")));
+
+    when(replaceTenantMembershipRolesUseCase.replaceRoles(command)).thenReturn(result);
+
+    mockMvc
+        .perform(
+            put(ROLES_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "roles": [
+                        "tenant-admin",
+                        "auditor"
+                      ]
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
+        .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
+        .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
+        .andExpect(jsonPath("$.status").value("ACTIVE"))
+        .andExpect(jsonPath("$.roles.length()").value(2))
+        .andExpect(jsonPath("$.roles").value(containsInAnyOrder("tenant-admin", "auditor")));
+
+    verify(replaceTenantMembershipRolesUseCase).replaceRoles(command);
+
+    verifyNoInteractions(
+        assignTenantMembershipUseCase,
+        getTenantMembershipUseCase,
+        suspendTenantMembershipUseCase,
+        activateTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldClearTenantMembershipRoles() throws Exception {
+    ReplaceTenantMembershipRolesCommand command =
+        new ReplaceTenantMembershipRolesCommand(TENANT_ID, MEMBERSHIP_ID, Set.of());
+
+    ReplaceTenantMembershipRolesResult result =
+        new ReplaceTenantMembershipRolesResult(
+            TenantMembershipId.of(MEMBERSHIP_ID),
+            TenantId.of(TENANT_ID),
+            PlatformUserId.of(PLATFORM_USER_ID),
+            TenantMembershipStatus.SUSPENDED,
+            Set.of());
+
+    when(replaceTenantMembershipRolesUseCase.replaceRoles(command)).thenReturn(result);
+
+    mockMvc
+        .perform(
+            put(ROLES_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "roles": []
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
+        .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
+        .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
+        .andExpect(jsonPath("$.status").value("SUSPENDED"))
+        .andExpect(jsonPath("$.roles").isEmpty());
+
+    verify(replaceTenantMembershipRolesUseCase).replaceRoles(command);
+
+    verifyNoInteractions(
+        assignTenantMembershipUseCase,
+        getTenantMembershipUseCase,
+        suspendTenantMembershipUseCase,
+        activateTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldRejectMissingTenantMembershipRoles() throws Exception {
+    mockMvc
+        .perform(
+            put(ROLES_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:request-validation-failed"))
+        .andExpect(jsonPath("$.title").value("Request validation failed"))
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.code").value("REQUEST_VALIDATION_FAILED"))
+        .andExpect(jsonPath("$.errors[0].field").value("roles"))
+        .andExpect(jsonPath("$.errors[0].message").value("Roles are required"));
+
+    verifyNoInteractions(
+        replaceTenantMembershipRolesUseCase,
+        assignTenantMembershipUseCase,
+        getTenantMembershipUseCase,
+        suspendTenantMembershipUseCase,
+        activateTenantMembershipUseCase);
   }
 }

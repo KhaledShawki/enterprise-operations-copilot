@@ -29,6 +29,7 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantStatus;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,6 +75,8 @@ class AssignTenantMembershipServiceTest {
     assertEquals(TENANT_ID, result.tenantId());
     assertEquals(PLATFORM_USER_ID, result.platformUserId());
     assertEquals(TenantMembershipStatus.ACTIVE, result.status());
+
+    assertEquals(Set.of(), result.roles());
 
     TenantMembership savedMembership =
         membershipRepository.findByTenantIdAndUserId(TENANT_ID, PLATFORM_USER_ID).orElseThrow();

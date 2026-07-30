@@ -17,4 +17,6 @@ interface AccessibleTenantJpaProjection {
   TenantStatus getTenantStatus();
 
   TenantMembershipStatus getMembershipStatus();
+
+  String getRoleKey();
 }

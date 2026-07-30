@@ -5,12 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipAlreadyActiveException;
+import io.github.khaledshawki.eoc.tenantaccess.application.exception.InvalidTenantRoleKeyException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantMembershipNotFoundException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.TenantNotFoundException;
-import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ActivateTenantMembershipCommand;
-import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ActivateTenantMembershipResult;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ReplaceTenantMembershipRolesCommand;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ReplaceTenantMembershipRolesResult;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.TenantMembershipRepository;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.out.TenantMembershipRoleWriteRepository;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.TenantRepository;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.PlatformUserId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.Tenant;
@@ -29,7 +30,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class ActivateTenantMembershipServiceTest {
+class ReplaceTenantMembershipRolesServiceTest {
 
   private static final PlatformUserId PLATFORM_USER_ID =
       PlatformUserId.of(UUID.fromString("00000000-0000-0000-0000-000000000001"));
@@ -37,46 +38,100 @@ class ActivateTenantMembershipServiceTest {
   private InMemoryTenantRepository tenantRepository;
   private InMemoryTenantMembershipRepository membershipRepository;
 
-  private ActivateTenantMembershipService service;
+  private ReplaceTenantMembershipRolesService service;
 
   @BeforeEach
   void setUp() {
     tenantRepository = new InMemoryTenantRepository();
-
     membershipRepository = new InMemoryTenantMembershipRepository();
 
-    service = new ActivateTenantMembershipService(tenantRepository, membershipRepository);
+    service =
+        new ReplaceTenantMembershipRolesService(
+            tenantRepository, membershipRepository, membershipRepository);
   }
 
   @Test
-  void shouldActivateAndPersistSuspendedTenantMembership() {
+  void shouldNormalizeReplaceAndPersistTenantMembershipRoles() {
     Tenant tenant = storeTenant("tenant-one");
 
-    TenantMembership membership = TenantMembership.create(tenant.id(), PLATFORM_USER_ID);
-    membership.replaceRoles(Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor")));
+    TenantMembership membership =
+        storeMembership(TenantMembership.create(tenant.id(), PLATFORM_USER_ID));
 
-    membership.suspend();
-    storeMembership(membership);
+    ReplaceTenantMembershipRolesResult result =
+        service.replaceRoles(
+            new ReplaceTenantMembershipRolesCommand(
+                tenant.id().value(),
+                membership.id().value(),
+                Set.of("tenant-admin", " Tenant-Admin ", "AUDITOR")));
 
-    ActivateTenantMembershipResult result =
-        service.activate(
-            new ActivateTenantMembershipCommand(tenant.id().value(), membership.id().value()));
+    Set<TenantRoleKey> expectedRoles =
+        Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor"));
 
     assertAll(
         () -> assertEquals(membership.id(), result.membershipId()),
         () -> assertEquals(tenant.id(), result.tenantId()),
         () -> assertEquals(PLATFORM_USER_ID, result.platformUserId()),
         () -> assertEquals(TenantMembershipStatus.ACTIVE, result.status()),
-        () -> assertEquals(TenantMembershipStatus.ACTIVE, membership.status()),
-        () -> assertEquals(membership.roles(), result.roles()));
+        () -> assertEquals(expectedRoles, result.roles()),
+        () -> assertEquals(expectedRoles, membership.roles()));
 
     assertEquals(1, tenantRepository.findByIdCalls());
-
     assertEquals(1, membershipRepository.findByIdCalls());
+    assertEquals(1, membershipRepository.replaceRolesCalls());
+    assertSame(membership, membershipRepository.lastRoleWriteMembership());
+  }
 
-    assertEquals(1, membershipRepository.saveCalls());
+  @Test
+  void shouldClearTenantMembershipRoles() {
+    Tenant tenant = storeTenant("tenant-one");
 
-    assertSame(membership, membershipRepository.lastSavedMembership());
+    TenantMembership membership =
+        TenantMembership.reconstitute(
+            TenantMembershipId.generate(),
+            tenant.id(),
+            PLATFORM_USER_ID,
+            TenantMembershipStatus.ACTIVE,
+            Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor")));
+
+    storeMembership(membership);
+
+    ReplaceTenantMembershipRolesResult result =
+        service.replaceRoles(
+            new ReplaceTenantMembershipRolesCommand(
+                tenant.id().value(), membership.id().value(), Set.of()));
+
+    assertEquals(Set.of(), result.roles());
+    assertEquals(Set.of(), membership.roles());
+
+    assertEquals(1, membershipRepository.replaceRolesCalls());
+    assertSame(membership, membershipRepository.lastRoleWriteMembership());
+  }
+
+  @Test
+  void shouldReplaceRolesOnSuspendedMembershipWithoutChangingStatus() {
+    Tenant tenant = storeTenant("tenant-one");
+
+    TenantMembership membership =
+        TenantMembership.reconstitute(
+            TenantMembershipId.generate(),
+            tenant.id(),
+            PLATFORM_USER_ID,
+            TenantMembershipStatus.ACTIVE,
+            Set.of(TenantRoleKey.of("auditor")));
+
+    membership.suspend();
+    storeMembership(membership);
+
+    ReplaceTenantMembershipRolesResult result =
+        service.replaceRoles(
+            new ReplaceTenantMembershipRolesCommand(
+                tenant.id().value(), membership.id().value(), Set.of("operations-manager")));
+
+    assertEquals(TenantMembershipStatus.SUSPENDED, result.status());
+    assertEquals(TenantMembershipStatus.SUSPENDED, membership.status());
+    assertEquals(Set.of(TenantRoleKey.of("operations-manager")), result.roles());
+    assertEquals(Set.of(TenantRoleKey.of("operations-manager")), membership.roles());
+    assertEquals(1, membershipRepository.replaceRolesCalls());
   }
 
   @Test
@@ -90,16 +145,14 @@ class ActivateTenantMembershipServiceTest {
         assertThrows(
             TenantNotFoundException.class,
             () ->
-                service.activate(
-                    new ActivateTenantMembershipCommand(tenantId.value(), membershipId.value())));
+                service.replaceRoles(
+                    new ReplaceTenantMembershipRolesCommand(
+                        tenantId.value(), membershipId.value(), Set.of("tenant-admin"))));
 
     assertEquals("Tenant " + tenantId.value() + " was not found", exception.getMessage());
-
     assertEquals(1, tenantRepository.findByIdCalls());
-
     assertEquals(0, membershipRepository.findByIdCalls());
-
-    assertEquals(0, membershipRepository.saveCalls());
+    assertEquals(0, membershipRepository.replaceRolesCalls());
   }
 
   @Test
@@ -113,9 +166,9 @@ class ActivateTenantMembershipServiceTest {
         assertThrows(
             TenantMembershipNotFoundException.class,
             () ->
-                service.activate(
-                    new ActivateTenantMembershipCommand(
-                        tenant.id().value(), membershipId.value())));
+                service.replaceRoles(
+                    new ReplaceTenantMembershipRolesCommand(
+                        tenant.id().value(), membershipId.value(), Set.of("tenant-admin"))));
 
     assertEquals(
         "Tenant membership "
@@ -125,30 +178,36 @@ class ActivateTenantMembershipServiceTest {
         exception.getMessage());
 
     assertEquals(1, tenantRepository.findByIdCalls());
-
     assertEquals(1, membershipRepository.findByIdCalls());
-
-    assertEquals(0, membershipRepository.saveCalls());
+    assertEquals(0, membershipRepository.replaceRolesCalls());
   }
 
   @Test
-  void shouldHideMembershipBelongingToAnotherTenantWithoutSaving() {
+  void shouldHideMembershipBelongingToAnotherTenantWithoutMutation() {
     Tenant requestedTenant = storeTenant("requested-tenant");
-
     Tenant owningTenant = storeTenant("owning-tenant");
 
-    TenantMembership membership = TenantMembership.create(owningTenant.id(), PLATFORM_USER_ID);
+    Set<TenantRoleKey> originalRoles = Set.of(TenantRoleKey.of("auditor"));
 
-    membership.suspend();
+    TenantMembership membership =
+        TenantMembership.reconstitute(
+            TenantMembershipId.generate(),
+            owningTenant.id(),
+            PLATFORM_USER_ID,
+            TenantMembershipStatus.ACTIVE,
+            originalRoles);
+
     storeMembership(membership);
 
     TenantMembershipNotFoundException exception =
         assertThrows(
             TenantMembershipNotFoundException.class,
             () ->
-                service.activate(
-                    new ActivateTenantMembershipCommand(
-                        requestedTenant.id().value(), membership.id().value())));
+                service.replaceRoles(
+                    new ReplaceTenantMembershipRolesCommand(
+                        requestedTenant.id().value(),
+                        membership.id().value(),
+                        Set.of("tenant-admin"))));
 
     assertEquals(
         "Tenant membership "
@@ -157,58 +216,48 @@ class ActivateTenantMembershipServiceTest {
             + requestedTenant.id().value(),
         exception.getMessage());
 
-    assertEquals(TenantMembershipStatus.SUSPENDED, membership.status());
-
-    assertEquals(1, tenantRepository.findByIdCalls());
-
-    assertEquals(1, membershipRepository.findByIdCalls());
-
-    assertEquals(0, membershipRepository.saveCalls());
+    assertEquals(originalRoles, membership.roles());
+    assertEquals(0, membershipRepository.replaceRolesCalls());
   }
 
   @Test
-  void shouldRejectAlreadyActiveTenantMembershipWithoutSaving() {
+  void shouldRejectInvalidRoleWithoutMutatingOrSavingMembership() {
     Tenant tenant = storeTenant("tenant-one");
 
+    Set<TenantRoleKey> originalRoles = Set.of(TenantRoleKey.of("auditor"));
+
     TenantMembership membership =
-        storeMembership(TenantMembership.create(tenant.id(), PLATFORM_USER_ID));
+        TenantMembership.reconstitute(
+            TenantMembershipId.generate(),
+            tenant.id(),
+            PLATFORM_USER_ID,
+            TenantMembershipStatus.ACTIVE,
+            originalRoles);
 
-    TenantMembershipAlreadyActiveException exception =
+    storeMembership(membership);
+
+    InvalidTenantRoleKeyException exception =
         assertThrows(
-            TenantMembershipAlreadyActiveException.class,
+            InvalidTenantRoleKeyException.class,
             () ->
-                service.activate(
-                    new ActivateTenantMembershipCommand(
-                        tenant.id().value(), membership.id().value())));
+                service.replaceRoles(
+                    new ReplaceTenantMembershipRolesCommand(
+                        tenant.id().value(), membership.id().value(), Set.of("invalid_role"))));
 
-    assertEquals(
-        "Tenant membership "
-            + membership.id().value()
-            + " is already active for tenant "
-            + tenant.id().value(),
-        exception.getMessage());
-
-    assertEquals(TenantMembershipStatus.ACTIVE, membership.status());
-
-    assertEquals(1, tenantRepository.findByIdCalls());
-
-    assertEquals(1, membershipRepository.findByIdCalls());
-
-    assertEquals(0, membershipRepository.saveCalls());
+    assertEquals("Tenant role key has an invalid format", exception.getMessage());
+    assertEquals(originalRoles, membership.roles());
+    assertEquals(0, membershipRepository.replaceRolesCalls());
   }
 
   @Test
   void shouldRejectNullCommandWithoutAccessingRepositories() {
     NullPointerException exception =
-        assertThrows(NullPointerException.class, () -> service.activate(null));
+        assertThrows(NullPointerException.class, () -> service.replaceRoles(null));
 
     assertEquals("Command cannot be null", exception.getMessage());
-
     assertEquals(0, tenantRepository.findByIdCalls());
-
     assertEquals(0, membershipRepository.findByIdCalls());
-
-    assertEquals(0, membershipRepository.saveCalls());
+    assertEquals(0, membershipRepository.replaceRolesCalls());
   }
 
   @Test
@@ -216,7 +265,9 @@ class ActivateTenantMembershipServiceTest {
     NullPointerException exception =
         assertThrows(
             NullPointerException.class,
-            () -> new ActivateTenantMembershipService(null, membershipRepository));
+            () ->
+                new ReplaceTenantMembershipRolesService(
+                    null, membershipRepository, membershipRepository));
 
     assertEquals("Tenant repository cannot be null", exception.getMessage());
   }
@@ -226,14 +277,27 @@ class ActivateTenantMembershipServiceTest {
     NullPointerException exception =
         assertThrows(
             NullPointerException.class,
-            () -> new ActivateTenantMembershipService(tenantRepository, null));
+            () ->
+                new ReplaceTenantMembershipRolesService(
+                    tenantRepository, null, membershipRepository));
 
     assertEquals("Tenant membership repository cannot be null", exception.getMessage());
   }
 
+  @Test
+  void shouldRejectNullTenantMembershipRoleWriteRepository() {
+    NullPointerException exception =
+        assertThrows(
+            NullPointerException.class,
+            () ->
+                new ReplaceTenantMembershipRolesService(
+                    tenantRepository, membershipRepository, null));
+
+    assertEquals("Tenant membership role write repository cannot be null", exception.getMessage());
+  }
+
   private Tenant storeTenant(String key) {
     Tenant tenant = Tenant.create(TenantKey.of(key), TenantName.of("Tenant " + key));
-
     tenantRepository.store(tenant);
     return tenant;
   }
@@ -246,7 +310,6 @@ class ActivateTenantMembershipServiceTest {
   private static final class InMemoryTenantRepository implements TenantRepository {
 
     private final Map<TenantId, Tenant> tenants = new HashMap<>();
-
     private int findByIdCalls;
 
     void store(Tenant tenant) {
@@ -276,14 +339,13 @@ class ActivateTenantMembershipServiceTest {
   }
 
   private static final class InMemoryTenantMembershipRepository
-      implements TenantMembershipRepository {
+      implements TenantMembershipRepository, TenantMembershipRoleWriteRepository {
 
     private final Map<TenantMembershipId, TenantMembership> memberships = new HashMap<>();
 
     private int findByIdCalls;
-    private int saveCalls;
-
-    private TenantMembership lastSavedMembership;
+    private int replaceRolesCalls;
+    private TenantMembership lastRoleWriteMembership;
 
     void store(TenantMembership membership) {
       memberships.put(membership.id(), membership);
@@ -291,8 +353,6 @@ class ActivateTenantMembershipServiceTest {
 
     @Override
     public TenantMembership save(TenantMembership membership) {
-      saveCalls++;
-      lastSavedMembership = membership;
       store(membership);
       return membership;
     }
@@ -300,7 +360,6 @@ class ActivateTenantMembershipServiceTest {
     @Override
     public Optional<TenantMembership> findById(TenantMembershipId membershipId) {
       findByIdCalls++;
-
       return Optional.ofNullable(memberships.get(membershipId));
     }
 
@@ -319,16 +378,24 @@ class ActivateTenantMembershipServiceTest {
       return findByTenantIdAndUserId(tenantId, userId).isPresent();
     }
 
+    @Override
+    public TenantMembership replaceRoles(TenantMembership membership) {
+      replaceRolesCalls++;
+      lastRoleWriteMembership = membership;
+      store(membership);
+      return membership;
+    }
+
     int findByIdCalls() {
       return findByIdCalls;
     }
 
-    int saveCalls() {
-      return saveCalls;
+    int replaceRolesCalls() {
+      return replaceRolesCalls;
     }
 
-    TenantMembership lastSavedMembership() {
-      return lastSavedMembership;
+    TenantMembership lastRoleWriteMembership() {
+      return lastRoleWriteMembership;
     }
   }
 }

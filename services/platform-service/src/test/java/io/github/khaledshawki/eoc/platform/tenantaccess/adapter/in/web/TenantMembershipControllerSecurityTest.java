@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -21,6 +22,9 @@ import io.github.khaledshawki.eoc.tenantaccess.application.port.in.AssignTenantM
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipQuery;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipResult;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantMembershipUseCase;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ReplaceTenantMembershipRolesCommand;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ReplaceTenantMembershipRolesResult;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ReplaceTenantMembershipRolesUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipCommand;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipResult;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipUseCase;
@@ -28,8 +32,10 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.PlatformUserId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipStatus;
+import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +64,7 @@ class TenantMembershipControllerSecurityTest {
   private static final String MEMBERSHIP_ENDPOINT = ENDPOINT + "/" + MEMBERSHIP_ID;
   private static final String SUSPENSION_ENDPOINT = MEMBERSHIP_ENDPOINT + "/suspension";
   private static final String ACTIVATION_ENDPOINT = MEMBERSHIP_ENDPOINT + "/activation";
+  private static final String ROLES_ENDPOINT = MEMBERSHIP_ENDPOINT + "/roles";
 
   private static final String PLATFORM_ADMIN_TOKEN = "platform-admin-token";
 
@@ -65,6 +72,16 @@ class TenantMembershipControllerSecurityTest {
       """
       {
         "platformUserId": "00000000-0000-0000-0000-000000000002"
+      }
+      """;
+
+  private static final String VALID_ROLES_REQUEST =
+      """
+      {
+        "roles": [
+          "tenant-admin",
+          "auditor"
+        ]
       }
       """;
 
@@ -76,6 +93,7 @@ class TenantMembershipControllerSecurityTest {
   @MockitoBean private GetTenantMembershipUseCase getTenantMembershipUseCase;
   @MockitoBean private SuspendTenantMembershipUseCase suspendTenantMembershipUseCase;
   @MockitoBean private ActivateTenantMembershipUseCase activateTenantMembershipUseCase;
+  @MockitoBean private ReplaceTenantMembershipRolesUseCase replaceTenantMembershipRolesUseCase;
 
   @Test
   void shouldRejectUnauthenticatedMembershipAssignment() throws Exception {
@@ -407,5 +425,93 @@ class TenantMembershipControllerSecurityTest {
     verifyNoInteractions(assignTenantMembershipUseCase);
     verifyNoInteractions(getTenantMembershipUseCase);
     verifyNoInteractions(suspendTenantMembershipUseCase);
+  }
+
+  @Test
+  void shouldRejectUnauthenticatedMembershipRoleReplacement() throws Exception {
+    mockMvc
+        .perform(
+            put(ROLES_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(VALID_ROLES_REQUEST))
+        .andExpect(status().isUnauthorized())
+        .andExpect(
+            header()
+                .string(HttpHeaders.WWW_AUTHENTICATE, org.hamcrest.Matchers.startsWith("Bearer")))
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:authentication-required"))
+        .andExpect(jsonPath("$.title").value("Authentication required"))
+        .andExpect(jsonPath("$.status").value(401))
+        .andExpect(
+            jsonPath("$.detail").value("Authentication is required to access this resource."))
+        .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
+
+    verifyNoInteractions(replaceTenantMembershipRolesUseCase);
+  }
+
+  @Test
+  void shouldRejectMembershipRoleReplacementWithoutPlatformAdminRole() throws Exception {
+    mockMvc
+        .perform(
+            put(ROLES_ENDPOINT)
+                .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_profile")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(VALID_ROLES_REQUEST))
+        .andExpect(status().isForbidden())
+        .andExpect(
+            header()
+                .string(HttpHeaders.WWW_AUTHENTICATE, org.hamcrest.Matchers.startsWith("Bearer")))
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:access-denied"))
+        .andExpect(jsonPath("$.title").value("Access denied"))
+        .andExpect(jsonPath("$.status").value(403))
+        .andExpect(
+            jsonPath("$.detail").value("You do not have permission to access this resource."))
+        .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+    verifyNoInteractions(replaceTenantMembershipRolesUseCase);
+  }
+
+  @Test
+  void shouldAllowMembershipRoleReplacementWithPlatformAdminRole() throws Exception {
+    ReplaceTenantMembershipRolesCommand command =
+        new ReplaceTenantMembershipRolesCommand(
+            TENANT_ID, MEMBERSHIP_ID, Set.of("tenant-admin", "auditor"));
+
+    ReplaceTenantMembershipRolesResult result =
+        new ReplaceTenantMembershipRolesResult(
+            TenantMembershipId.of(MEMBERSHIP_ID),
+            TenantId.of(TENANT_ID),
+            PlatformUserId.of(PLATFORM_USER_ID),
+            TenantMembershipStatus.ACTIVE,
+            Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor")));
+
+    Jwt platformAdminJwt =
+        Jwt.withTokenValue(PLATFORM_ADMIN_TOKEN)
+            .header("alg", "RS256")
+            .subject("user-123")
+            .claim("realm_access", Map.of("roles", List.of("platform-admin")))
+            .build();
+
+    when(jwtDecoder.decode(PLATFORM_ADMIN_TOKEN)).thenReturn(platformAdminJwt);
+
+    when(replaceTenantMembershipRolesUseCase.replaceRoles(command)).thenReturn(result);
+
+    mockMvc
+        .perform(
+            put(ROLES_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + PLATFORM_ADMIN_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(VALID_ROLES_REQUEST))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(MEMBERSHIP_ID.toString()))
+        .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
+        .andExpect(jsonPath("$.platformUserId").value(PLATFORM_USER_ID.toString()))
+        .andExpect(jsonPath("$.status").value("ACTIVE"))
+        .andExpect(jsonPath("$.roles.length()").value(2));
+
+    verify(replaceTenantMembershipRolesUseCase).replaceRoles(command);
   }
 }

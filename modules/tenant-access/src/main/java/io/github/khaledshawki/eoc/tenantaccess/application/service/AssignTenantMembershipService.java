@@ -72,6 +72,10 @@ public final class AssignTenantMembershipService implements AssignTenantMembersh
         tenantMembershipRepository.save(TenantMembership.create(tenantId, platformUserId));
 
     return new AssignTenantMembershipResult(
-        membership.id(), membership.tenantId(), membership.userId(), membership.status());
+        membership.id(),
+        membership.tenantId(),
+        membership.userId(),
+        membership.status(),
+        membership.roles());
   }
 }

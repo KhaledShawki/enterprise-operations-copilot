@@ -42,6 +42,10 @@ public final class GetTenantMembershipService implements GetTenantMembershipUseC
             .orElseThrow(() -> new TenantMembershipNotFoundException(tenantId, membershipId));
 
     return new GetTenantMembershipResult(
-        membership.id(), membership.tenantId(), membership.userId(), membership.status());
+        membership.id(),
+        membership.tenantId(),
+        membership.userId(),
+        membership.status(),
+        membership.roles());
   }
 }

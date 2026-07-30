@@ -1,9 +1,11 @@
 package io.github.khaledshawki.eoc.platform.security.adapter.in.web;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -19,8 +21,10 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.Tenant;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembership;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
+import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +57,14 @@ class CurrentUserTenantAccessApiIT {
   private static final String UNKNOWN_USER_ACCESS_TOKEN = "unknown-user-access-token";
 
   private static final String SUSPENDED_USER_ACCESS_TOKEN = "suspended-user-access-token";
+
+  private static final String PLATFORM_ADMIN_ACCESS_TOKEN = "platform-admin-access-token";
+
+  private static final Set<TenantRoleKey> ALPHA_ROLES =
+      Set.of(TenantRoleKey.of("tenant-admin"), TenantRoleKey.of("auditor"));
+
+  private static final Set<TenantRoleKey> BETA_ROLES =
+      Set.of(TenantRoleKey.of("operations-manager"));
 
   @Autowired private MockMvc mockMvc;
 
@@ -97,9 +109,9 @@ class CurrentUserTenantAccessApiIT {
 
     Tenant otherUsersTenant = createTenant("other-users-tenant", "Other User's Tenant");
 
-    TenantMembership betaMembership = createMembership(betaTenant, currentUser);
+    TenantMembership betaMembership = createMembership(betaTenant, currentUser, BETA_ROLES);
 
-    TenantMembership alphaMembership = createMembership(alphaTenant, currentUser);
+    TenantMembership alphaMembership = createMembership(alphaTenant, currentUser, ALPHA_ROLES);
 
     TenantMembership suspendedMembership =
         TenantMembership.create(suspendedMembershipTenant.id(), currentUser.id());
@@ -111,6 +123,8 @@ class CurrentUserTenantAccessApiIT {
     createMembership(suspendedTenant, currentUser);
 
     createMembership(otherUsersTenant, otherUser);
+
+    List<Long> membershipVersionsBeforeRequest = membershipVersions();
 
     when(jwtDecoder.decode(CURRENT_USER_ACCESS_TOKEN))
         .thenReturn(jwt(CURRENT_USER_ACCESS_TOKEN, CURRENT_USER_SUBJECT));
@@ -130,13 +144,20 @@ class CurrentUserTenantAccessApiIT {
         .andExpect(jsonPath("$.tenants[0].tenantId").value(alphaTenant.id().value().toString()))
         .andExpect(jsonPath("$.tenants[0].tenantKey").value("alpha"))
         .andExpect(jsonPath("$.tenants[0].displayName").value("Alpha Tenant"))
+        .andExpect(jsonPath("$.tenants[0].roles.length()").value(2))
+        .andExpect(
+            jsonPath("$.tenants[0].roles").value(containsInAnyOrder("tenant-admin", "auditor")))
         .andExpect(
             jsonPath("$.tenants[1].membershipId").value(betaMembership.id().value().toString()))
         .andExpect(jsonPath("$.tenants[1].tenantId").value(betaTenant.id().value().toString()))
         .andExpect(jsonPath("$.tenants[1].tenantKey").value("beta"))
-        .andExpect(jsonPath("$.tenants[1].displayName").value("Beta Tenant"));
+        .andExpect(jsonPath("$.tenants[1].displayName").value("Beta Tenant"))
+        .andExpect(jsonPath("$.tenants[1].roles.length()").value(1))
+        .andExpect(jsonPath("$.tenants[1].roles").value(containsInAnyOrder("operations-manager")));
 
     assertEquals(5L, countRows("tenant_memberships"));
+
+    assertEquals(3L, countRows("tenant_membership_roles"));
 
     assertEquals(5L, countRows("tenants"));
 
@@ -146,11 +167,188 @@ class CurrentUserTenantAccessApiIT {
 
     assertEquals("SUSPENDED", tenantStatus(suspendedTenant));
 
-    assertEquals(0L, countVersionedMembershipChanges());
+    assertEquals(membershipVersionsBeforeRequest, membershipVersions());
 
     assertEquals(0L, countVersionedTenantChanges());
 
     assertEquals(0L, countVersionedPlatformUserChanges());
+  }
+
+  @Test
+  void shouldReplaceAndClearMembershipRolesThroughApiAndExposeCurrentState() throws Exception {
+    PlatformUser currentUser = createPlatformUser(CURRENT_USER_SUBJECT);
+
+    Tenant tenant = createTenant("alpha", "Alpha Tenant");
+
+    TenantMembership membership = createMembership(tenant, currentUser);
+
+    String rolesEndpoint =
+        "/api/v1/tenants/"
+            + tenant.id().value()
+            + "/memberships/"
+            + membership.id().value()
+            + "/roles";
+
+    when(jwtDecoder.decode(PLATFORM_ADMIN_ACCESS_TOKEN))
+        .thenReturn(
+            jwt(PLATFORM_ADMIN_ACCESS_TOKEN, "platform-admin-user", List.of("platform-admin")));
+
+    when(jwtDecoder.decode(CURRENT_USER_ACCESS_TOKEN))
+        .thenReturn(jwt(CURRENT_USER_ACCESS_TOKEN, CURRENT_USER_SUBJECT));
+
+    Long initialVersion = membershipVersion(membership);
+
+    mockMvc
+        .perform(
+            put(rolesEndpoint)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + PLATFORM_ADMIN_ACCESS_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "roles": [
+                        " tenant-admin ",
+                        "AUDITOR",
+                        "tenant-admin"
+                      ]
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(membership.id().value().toString()))
+        .andExpect(jsonPath("$.tenantId").value(tenant.id().value().toString()))
+        .andExpect(jsonPath("$.platformUserId").value(currentUser.id().value().toString()))
+        .andExpect(jsonPath("$.status").value("ACTIVE"))
+        .andExpect(jsonPath("$.roles.length()").value(2))
+        .andExpect(jsonPath("$.roles").value(containsInAnyOrder("tenant-admin", "auditor")));
+
+    Long versionAfterReplacement = membershipVersion(membership);
+
+    assertEquals(initialVersion + 1, versionAfterReplacement);
+
+    assertEquals(List.of("auditor", "tenant-admin"), membershipRoleKeys(membership));
+
+    assertEquals("ACTIVE", membershipStatus(membership));
+
+    mockMvc
+        .perform(
+            get(ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + CURRENT_USER_ACCESS_TOKEN)
+                .accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.tenants.length()").value(1))
+        .andExpect(jsonPath("$.tenants[0].membershipId").value(membership.id().value().toString()))
+        .andExpect(jsonPath("$.tenants[0].tenantId").value(tenant.id().value().toString()))
+        .andExpect(jsonPath("$.tenants[0].tenantKey").value("alpha"))
+        .andExpect(jsonPath("$.tenants[0].roles.length()").value(2))
+        .andExpect(
+            jsonPath("$.tenants[0].roles").value(containsInAnyOrder("tenant-admin", "auditor")));
+
+    assertEquals(versionAfterReplacement, membershipVersion(membership));
+
+    mockMvc
+        .perform(
+            put(rolesEndpoint)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + PLATFORM_ADMIN_ACCESS_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "roles": []
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(membership.id().value().toString()))
+        .andExpect(jsonPath("$.status").value("ACTIVE"))
+        .andExpect(jsonPath("$.roles").isArray())
+        .andExpect(jsonPath("$.roles").isEmpty());
+
+    Long versionAfterClear = membershipVersion(membership);
+
+    assertEquals(versionAfterReplacement + 1, versionAfterClear);
+
+    assertEquals(List.of(), membershipRoleKeys(membership));
+
+    assertEquals("ACTIVE", membershipStatus(membership));
+
+    mockMvc
+        .perform(
+            get(ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + CURRENT_USER_ACCESS_TOKEN)
+                .accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.tenants.length()").value(1))
+        .andExpect(jsonPath("$.tenants[0].roles").isArray())
+        .andExpect(jsonPath("$.tenants[0].roles").isEmpty());
+
+    assertEquals(versionAfterClear, membershipVersion(membership));
+
+    assertEquals(1L, countRows("tenants"));
+
+    assertEquals(1L, countRows("platform_users"));
+
+    assertEquals(1L, countRows("tenant_memberships"));
+
+    assertEquals(0L, countRows("tenant_membership_roles"));
+  }
+
+  @Test
+  void shouldRejectInvalidMembershipRoleWithoutMutation() throws Exception {
+    PlatformUser currentUser = createPlatformUser(CURRENT_USER_SUBJECT);
+
+    Tenant tenant = createTenant("alpha", "Alpha Tenant");
+
+    TenantMembership membership = createMembership(tenant, currentUser);
+
+    String rolesEndpoint =
+        "/api/v1/tenants/"
+            + tenant.id().value()
+            + "/memberships/"
+            + membership.id().value()
+            + "/roles";
+
+    when(jwtDecoder.decode(PLATFORM_ADMIN_ACCESS_TOKEN))
+        .thenReturn(
+            jwt(PLATFORM_ADMIN_ACCESS_TOKEN, "platform-admin-user", List.of("platform-admin")));
+
+    Long versionBeforeRequest = membershipVersion(membership);
+
+    mockMvc
+        .perform(
+            put(rolesEndpoint)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + PLATFORM_ADMIN_ACCESS_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "roles": [
+                        "invalid_role"
+                      ]
+                    }
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:invalid-tenant-role-key"))
+        .andExpect(jsonPath("$.title").value("Invalid tenant role key"))
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.detail").value("Tenant role key has an invalid format"))
+        .andExpect(jsonPath("$.code").value("INVALID_TENANT_ROLE_KEY"));
+
+    assertEquals(versionBeforeRequest, membershipVersion(membership));
+
+    assertEquals(List.of(), membershipRoleKeys(membership));
+
+    assertEquals("ACTIVE", membershipStatus(membership));
+
+    assertEquals(1L, countRows("tenant_memberships"));
+
+    assertEquals(0L, countRows("tenant_membership_roles"));
   }
 
   @Test
@@ -259,7 +457,16 @@ class CurrentUserTenantAccessApiIT {
   }
 
   private TenantMembership createMembership(Tenant tenant, PlatformUser platformUser) {
-    return tenantMembershipRepository.save(TenantMembership.create(tenant.id(), platformUser.id()));
+    return createMembership(tenant, platformUser, Set.of());
+  }
+
+  private TenantMembership createMembership(
+      Tenant tenant, PlatformUser platformUser, Set<TenantRoleKey> roles) {
+    TenantMembership membership = TenantMembership.create(tenant.id(), platformUser.id());
+
+    membership.replaceRoles(roles);
+
+    return tenantMembershipRepository.save(membership);
   }
 
   private Long countRows(String tableName) {
@@ -299,14 +506,37 @@ class CurrentUserTenantAccessApiIT {
         platformUser.id().value());
   }
 
-  private Long countVersionedMembershipChanges() {
-    return jdbcTemplate.queryForObject(
+  private List<Long> membershipVersions() {
+    return jdbcTemplate.queryForList(
         """
-        SELECT COUNT(*)
+        SELECT version
         FROM tenant_memberships
-        WHERE version <> 0
+        ORDER BY id
         """,
         Long.class);
+  }
+
+  private Long membershipVersion(TenantMembership membership) {
+    return jdbcTemplate.queryForObject(
+        """
+        SELECT version
+        FROM tenant_memberships
+        WHERE id = ?
+        """,
+        Long.class,
+        membership.id().value());
+  }
+
+  private List<String> membershipRoleKeys(TenantMembership membership) {
+    return jdbcTemplate.queryForList(
+        """
+        SELECT role_key
+        FROM tenant_membership_roles
+        WHERE tenant_membership_id = ?
+        ORDER BY role_key
+        """,
+        String.class,
+        membership.id().value());
   }
 
   private Long countVersionedTenantChanges() {
@@ -330,12 +560,16 @@ class CurrentUserTenantAccessApiIT {
   }
 
   private static Jwt jwt(String accessToken, String subject) {
+    return jwt(accessToken, subject, List.of("auditor"));
+  }
+
+  private static Jwt jwt(String accessToken, String subject, List<String> roles) {
     return Jwt.withTokenValue(accessToken)
         .header("alg", "RS256")
         .issuer(ISSUER)
         .subject(subject)
         .claim("scope", "profile")
-        .claim("realm_access", Map.of("roles", List.of("auditor")))
+        .claim("realm_access", Map.of("roles", roles))
         .build();
   }
 }

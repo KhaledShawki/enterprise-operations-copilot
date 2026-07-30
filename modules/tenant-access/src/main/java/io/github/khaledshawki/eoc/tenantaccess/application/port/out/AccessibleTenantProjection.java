@@ -5,8 +5,10 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipId;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembershipStatus;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
+import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantStatus;
 import java.util.Objects;
+import java.util.Set;
 
 public record AccessibleTenantProjection(
     TenantMembershipId membershipId,
@@ -14,7 +16,8 @@ public record AccessibleTenantProjection(
     TenantKey key,
     TenantName name,
     TenantStatus tenantStatus,
-    TenantMembershipStatus membershipStatus) {
+    TenantMembershipStatus membershipStatus,
+    Set<TenantRoleKey> roles) {
 
   public AccessibleTenantProjection {
     Objects.requireNonNull(membershipId, "Tenant membership id cannot be null");
@@ -28,5 +31,17 @@ public record AccessibleTenantProjection(
     Objects.requireNonNull(tenantStatus, "Tenant status cannot be null");
 
     Objects.requireNonNull(membershipStatus, "Tenant membership status cannot be null");
+
+    roles = Set.copyOf(Objects.requireNonNull(roles, "Tenant membership roles cannot be null"));
+  }
+
+  public AccessibleTenantProjection(
+      TenantMembershipId membershipId,
+      TenantId tenantId,
+      TenantKey key,
+      TenantName name,
+      TenantStatus tenantStatus,
+      TenantMembershipStatus membershipStatus) {
+    this(membershipId, tenantId, key, name, tenantStatus, membershipStatus, Set.of());
   }
 }

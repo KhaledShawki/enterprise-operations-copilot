@@ -23,12 +23,14 @@ interface SpringDataTenantMembershipRepository
         tenant.tenantKey as tenantKey,
         tenant.displayName as displayName,
         tenant.status as tenantStatus,
-        membership.status as membershipStatus
+        membership.status as membershipStatus,
+        roleKey as roleKey
       from TenantMembershipJpaEntity membership
       join TenantJpaEntity tenant
         on tenant.id = membership.tenantId
+      left join membership.roleKeys roleKey
       where membership.platformUserId = :platformUserId
-      order by tenant.tenantKey
+      order by tenant.tenantKey, roleKey
       """)
   List<AccessibleTenantJpaProjection> findAccessibleTenantsByPlatformUserId(
       @Param("platformUserId") UUID platformUserId);
