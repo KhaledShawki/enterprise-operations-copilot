@@ -1,0 +1,38 @@
+# Version control and repository metadata
+.git
+.github
+
+# IDE and operating-system files
+.idea
+.vscode
+**/.DS_Store
+**/*.iml
+
+# Build and test output
+**/target
+/out
+/modules/*/out
+/services/*/out
+coverage
+test-results
+reports
+
+# Local dependencies
+node_modules
+dist
+
+# Local configuration and secrets
+**/.env
+**/.env.*
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/credentials
+**/secrets
+
+# Local runtime data
+deployment/compose/data
+docker-data
+tmp
+temp
