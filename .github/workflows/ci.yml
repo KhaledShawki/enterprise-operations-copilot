@@ -36,6 +36,33 @@ jobs:
           --file deployment/compose/compose.yaml
           config --quiet
 
+  container:
+    name: Platform service container
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build platform service image
+        run: >-
+          docker build
+          --file services/platform-service/Dockerfile
+          --tag eoc/platform-service:test
+          .
+
+      - name: Verify platform service image
+        run: |
+          test "$(
+            docker image inspect \
+              --format '{{.Config.User}}' \
+              eoc/platform-service:test
+          )" = "10001:10001"
+          docker run --rm --entrypoint java eoc/platform-service:test -version
+
   verify:
     name: Maven verify
     runs-on: ubuntu-latest
