@@ -31,9 +31,13 @@ The architecture is designed to evolve with Kafka-compatible event streaming, a 
 
 ## Local development
 
-Keycloak and its PostgreSQL database run locally with Docker Compose.
+The complete local platform runs with Docker Compose and includes the platform service,
+its PostgreSQL database, Keycloak, and Keycloak's PostgreSQL database.
 
-See the [Local Keycloak runbook](docs/runbooks/local-keycloak.md) for configuration, startup, verification, and reset instructions.
+See the [Local Platform runbook](docs/runbooks/local-platform.md) for configuration,
+startup, health verification, migration checks, persistence behavior, and reset
+instructions. For identity-provider-only operation, use the
+[Local Keycloak runbook](docs/runbooks/local-keycloak.md).
 
 ## Documentation
 
