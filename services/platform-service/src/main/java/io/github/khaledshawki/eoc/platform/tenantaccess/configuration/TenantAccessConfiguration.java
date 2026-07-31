@@ -8,6 +8,7 @@ import io.github.khaledshawki.eoc.tenantaccess.application.port.in.GetTenantUseC
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ListAccessibleTenantsUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ProvisionPlatformUserUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ReplaceTenantMembershipRolesUseCase;
+import io.github.khaledshawki.eoc.tenantaccess.application.port.in.ResolveTenantAccessUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.in.SuspendTenantMembershipUseCase;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.AccessibleTenantQueryRepository;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.PlatformUserRepository;
@@ -22,6 +23,7 @@ import io.github.khaledshawki.eoc.tenantaccess.application.service.GetTenantServ
 import io.github.khaledshawki.eoc.tenantaccess.application.service.ListAccessibleTenantsService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.ProvisionPlatformUserService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.ReplaceTenantMembershipRolesService;
+import io.github.khaledshawki.eoc.tenantaccess.application.service.ResolveTenantAccessService;
 import io.github.khaledshawki.eoc.tenantaccess.application.service.SuspendTenantMembershipService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -87,5 +89,14 @@ public class TenantAccessConfiguration {
       TenantMembershipRoleWriteRepository tenantMembershipRoleWriteRepository) {
     return new ReplaceTenantMembershipRolesService(
         tenantRepository, tenantMembershipRepository, tenantMembershipRoleWriteRepository);
+  }
+
+  @Bean
+  ResolveTenantAccessUseCase resolveTenantAccessUseCase(
+      PlatformUserRepository platformUserRepository,
+      TenantRepository tenantRepository,
+      TenantMembershipRepository tenantMembershipRepository) {
+    return new ResolveTenantAccessService(
+        platformUserRepository, tenantRepository, tenantMembershipRepository);
   }
 }
