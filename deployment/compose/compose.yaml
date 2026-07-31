@@ -1,6 +1,34 @@
 name: eoc
 
 services:
+  platform-postgres:
+    image: postgres:18.4-alpine
+    restart: unless-stopped
+    shm_size: 128mb
+
+    environment:
+      POSTGRES_DB: "${PLATFORM_DB_NAME:?PLATFORM_DB_NAME is required}"
+      POSTGRES_USER: "${PLATFORM_DB_USERNAME:?PLATFORM_DB_USERNAME is required}"
+      POSTGRES_PASSWORD: "${PLATFORM_DB_PASSWORD:?PLATFORM_DB_PASSWORD is required}"
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+
+    volumes:
+      - platform-postgres-data:/var/lib/postgresql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+    networks:
+      - platform
+
   keycloak-postgres:
     image: postgres:18.4-alpine
     restart: unless-stopped
@@ -80,8 +108,50 @@ services:
     networks:
       - identity
 
+  platform-service:
+    image: eoc/platform-service:local
+
+    build:
+      context: ../..
+      dockerfile: services/platform-service/Dockerfile
+
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    environment:
+      EOC_DATASOURCE_URL: "jdbc:postgresql://platform-postgres:5432/${PLATFORM_DB_NAME:?PLATFORM_DB_NAME is required}"
+      EOC_DATASOURCE_USERNAME: "${PLATFORM_DB_USERNAME:?PLATFORM_DB_USERNAME is required}"
+      EOC_DATASOURCE_PASSWORD: "${PLATFORM_DB_PASSWORD:?PLATFORM_DB_PASSWORD is required}"
+
+      EOC_SECURITY_ISSUER_URI: "http://localhost:8180/realms/eoc"
+      EOC_SECURITY_JWK_SET_URI: "http://keycloak:8080/realms/eoc/protocol/openid-connect/certs"
+      EOC_SECURITY_AUDIENCE: "platform-api"
+
+    ports:
+      - "127.0.0.1:${PLATFORM_HTTP_PORT:?PLATFORM_HTTP_PORT is required}:8080"
+
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+
+    networks:
+      - platform
+      - identity
+
 volumes:
+  platform-postgres-data:
   keycloak-postgres-data:
 
 networks:
+  platform:
   identity:

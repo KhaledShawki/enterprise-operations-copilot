@@ -35,6 +35,6 @@ USER 10001:10001
 EXPOSE 8080
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 \
-  CMD wget --quiet --tries=1 --spider http://127.0.0.1:8080/actuator/health/readiness || exit 1
+  CMD ["wget", "--quiet", "--tries=1", "--output-document=/dev/null", "http://127.0.0.1:8080/actuator/health/readiness"]
 
 ENTRYPOINT ["java", "-jar", "/opt/eoc/platform-service.jar"]
