@@ -4,6 +4,9 @@ This runbook starts the local Keycloak identity provider and its PostgreSQL data
 
 The configuration uses Keycloak development mode and must not be used in production.
 
+To start Keycloak together with the platform service and its database, use the
+[Local Platform runbook](local-platform.md).
+
 ## Prerequisites
 
 - Docker with Docker Compose
@@ -29,7 +32,7 @@ The `.env` file contains local credentials and must not be committed.
 docker compose \
   --env-file deployment/compose/.env \
   -f deployment/compose/compose.yaml \
-  up -d --wait --wait-timeout 180
+  up -d --wait --wait-timeout 180 keycloak
 ```
 
 ## Check container health
@@ -66,10 +69,14 @@ The default local configuration is defined in `services/platform-service/src/mai
 | Environment variable | Local default | Purpose |
 | --- | --- | --- |
 | `EOC_SECURITY_ISSUER_URI` | `http://localhost:8180/realms/eoc` | Identifies the trusted token issuer |
-| `EOC_SECURITY_JWK_SET_URI` | `http://localhost:8180/realms/eoc/protocol/openid-connect/certs` | Provides the public keys used to verify JWT signatures |
+| `EOC_SECURITY_JWK_SET_URI` | `http://localhost:8180/realms/eoc/protocol/openid-connect/certs` | Provides the public keys used to verify JWT signatures when the platform runs on the host |
 | `EOC_SECURITY_AUDIENCE` | `platform-api` | Identifies the required access-token audience |
 
-These defaults are intended only for local development. Override them when running against another Keycloak environment.
+The full Docker Compose stack overrides the JWK Set URI with the internal address
+`http://keycloak:8080/realms/eoc/protocol/openid-connect/certs`. The issuer remains
+`http://localhost:8180/realms/eoc` because it must match the token's `iss` claim.
+These values are intended only for local development. Override them when running
+against another Keycloak environment.
 
 The platform service:
 
@@ -84,7 +91,7 @@ Creating a tenant requires the `platform-admin` realm role:
 ```http
 POST /api/v1/tenants
 Authorization: Bearer <access-token>
-Content-Type: application/jsonq
+Content-Type: application/json
 ```
 
 Authentication and authorization failures use RFC 9457 Problem Details responses:
@@ -146,13 +153,16 @@ The PostgreSQL volume is preserved.
 
 Keycloak does not overwrite an existing realm during startup import. After changing `eoc-realm.json`, remove the local database volume to force a clean import.
 
-Warning: this permanently deletes all local Keycloak data.
+Warning: the following commands permanently delete all local Keycloak data. They
+preserve the platform PostgreSQL volume.
 
 ```bash
 docker compose \
   --env-file deployment/compose/.env \
   -f deployment/compose/compose.yaml \
-  down --volumes
+  down
+
+docker volume rm eoc_keycloak-postgres-data
 ```
 
-Start the services again using the normal start command.
+Start Keycloak again using the normal identity-provider startup command.
