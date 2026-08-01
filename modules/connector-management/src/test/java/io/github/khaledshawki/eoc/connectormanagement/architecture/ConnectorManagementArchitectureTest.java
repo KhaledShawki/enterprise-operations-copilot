@@ -13,6 +13,7 @@ class ConnectorManagementArchitectureTest {
   private static final String CONNECTOR_PACKAGE = "io.github.khaledshawki.eoc.connectormanagement";
   private static final String DOMAIN_PACKAGE = CONNECTOR_PACKAGE + ".domain..";
   private static final String APPLICATION_PACKAGE = CONNECTOR_PACKAGE + ".application..";
+  private static final String INPUT_PORT_PACKAGE = CONNECTOR_PACKAGE + ".application.port.in..";
   private static final String OUTPUT_PORT_PACKAGE = CONNECTOR_PACKAGE + ".application.port.out..";
 
   private static final JavaClasses CONNECTOR_CLASSES =
@@ -76,6 +77,19 @@ class ConnectorManagementArchitectureTest {
         .should()
         .beInterfaces()
         .because("outbound infrastructure must implement application-owned contracts")
+        .check(CONNECTOR_CLASSES);
+  }
+
+  @Test
+  void inputUseCasesAreInterfaces() {
+    classes()
+        .that()
+        .resideInAPackage(INPUT_PORT_PACKAGE)
+        .and()
+        .haveSimpleNameEndingWith("UseCase")
+        .should()
+        .beInterfaces()
+        .because("inbound adapters must depend on application-owned input ports")
         .check(CONNECTOR_CLASSES);
   }
 }

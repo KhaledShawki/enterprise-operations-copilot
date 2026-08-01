@@ -9,6 +9,7 @@ import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorTena
 import io.github.khaledshawki.eoc.platform.persistence.PersistenceConstraintViolationDetector;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -69,6 +70,16 @@ class ConnectorPersistenceAdapter implements ConnectorRepository {
     return connectorRepository
         .findByIdAndTenantId(connectorId.value(), tenantId.value())
         .map(connectorPersistenceMapper::toDomain);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<Connector> findAllByTenantId(ConnectorTenantId tenantId) {
+    Objects.requireNonNull(tenantId, "Connector tenant id cannot be null");
+
+    return connectorRepository.findAllByTenantIdOrderByNameAscIdAsc(tenantId.value()).stream()
+        .map(connectorPersistenceMapper::toDomain)
+        .toList();
   }
 
   @Override

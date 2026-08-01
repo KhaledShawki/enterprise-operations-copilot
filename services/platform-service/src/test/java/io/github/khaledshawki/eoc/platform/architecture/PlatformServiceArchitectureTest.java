@@ -22,6 +22,10 @@ class PlatformServiceArchitectureTest {
       TENANT_ACCESS_PACKAGE + ".application.port.out..";
   private static final String CONNECTOR_OUTPUT_PORT_PACKAGE =
       CONNECTOR_MANAGEMENT_PACKAGE + ".application.port.out..";
+  private static final String CONNECTOR_INPUT_PORT_PACKAGE =
+      CONNECTOR_MANAGEMENT_PACKAGE + ".application.port.in..";
+  private static final String CONNECTOR_APPLICATION_SERVICE_PACKAGE =
+      CONNECTOR_MANAGEMENT_PACKAGE + ".application.service..";
   private static final String APPLICATION_SERVICE_PACKAGE =
       TENANT_ACCESS_PACKAGE + ".application.service..";
   private static final String TENANT_WEB_ADAPTER_PACKAGE =
@@ -30,6 +34,10 @@ class PlatformServiceArchitectureTest {
       PLATFORM_PACKAGE + ".tenantaccess.adapter.out.persistence..";
   private static final String CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE =
       PLATFORM_PACKAGE + ".connectormanagement.adapter.out.persistence..";
+  private static final String CONNECTOR_WEB_ADAPTER_PACKAGE =
+      PLATFORM_PACKAGE + ".connectormanagement.adapter.in.web..";
+  private static final String CONNECTOR_CONFIGURATION_PACKAGE =
+      PLATFORM_PACKAGE + ".connectormanagement.configuration..";
   private static final String PERSISTENCE_SUPPORT_PACKAGE = PLATFORM_PACKAGE + ".persistence..";
   private static final String TENANT_CONFIGURATION_PACKAGE =
       PLATFORM_PACKAGE + ".tenantaccess.configuration..";
@@ -100,6 +108,44 @@ class PlatformServiceArchitectureTest {
         .should()
         .implement(JavaClass.Predicates.resideInAPackage(CONNECTOR_OUTPUT_PORT_PACKAGE))
         .because("connector persistence must implement connector-owned output ports")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorWebControllersUseConnectorInputPorts() {
+    classes()
+        .that()
+        .resideInAPackage(CONNECTOR_WEB_ADAPTER_PACKAGE)
+        .and()
+        .haveSimpleNameEndingWith("Controller")
+        .should()
+        .dependOnClassesThat()
+        .resideInAPackage(CONNECTOR_INPUT_PORT_PACKAGE)
+        .because("connector web controllers must invoke use cases through input ports")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorWebAdaptersDoNotBypassInputPorts() {
+    noClasses()
+        .that()
+        .resideInAPackage(CONNECTOR_WEB_ADAPTER_PACKAGE)
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(CONNECTOR_APPLICATION_SERVICE_PACKAGE, CONNECTOR_OUTPUT_PORT_PACKAGE)
+        .because("connector inbound adapters must not depend on services or output ports")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorWebAdaptersDoNotDependOnPersistenceOrConfiguration() {
+    noClasses()
+        .that()
+        .resideInAPackage(CONNECTOR_WEB_ADAPTER_PACKAGE)
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_CONFIGURATION_PACKAGE)
+        .because("connector inbound adapters must remain independent of wiring and persistence")
         .check(PLATFORM_CLASSES);
   }
 

@@ -1,5 +1,11 @@
 package io.github.khaledshawki.eoc.platform.web.error;
 
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAlreadyActiveException;
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAlreadySuspendedException;
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNameAlreadyExistsException;
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNotActiveException;
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNotFoundException;
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.InvalidConnectorConfigurationException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.InvalidTenantRoleKeyException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotFoundException;
@@ -47,6 +53,18 @@ public class ApiExceptionHandler {
       URI.create("urn:eoc:problem:tenant-membership-already-active");
   private static final URI INVALID_TENANT_ROLE_KEY_TYPE =
       URI.create("urn:eoc:problem:invalid-tenant-role-key");
+  private static final URI CONNECTOR_NAME_ALREADY_EXISTS_TYPE =
+      URI.create("urn:eoc:problem:connector-name-already-exists");
+  private static final URI CONNECTOR_NOT_FOUND_TYPE =
+      URI.create("urn:eoc:problem:connector-not-found");
+  private static final URI INVALID_CONNECTOR_CONFIGURATION_TYPE =
+      URI.create("urn:eoc:problem:invalid-connector-configuration");
+  private static final URI CONNECTOR_ALREADY_ACTIVE_TYPE =
+      URI.create("urn:eoc:problem:connector-already-active");
+  private static final URI CONNECTOR_ALREADY_SUSPENDED_TYPE =
+      URI.create("urn:eoc:problem:connector-already-suspended");
+  private static final URI CONNECTOR_NOT_ACTIVE_TYPE =
+      URI.create("urn:eoc:problem:connector-not-active");
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ProblemDetail handleValidationFailure(MethodArgumentNotValidException exception) {
@@ -200,6 +218,67 @@ public class ApiExceptionHandler {
 
     problem.setProperty("code", "INVALID_TENANT_ROLE_KEY");
 
+    return problem;
+  }
+
+  @ExceptionHandler(ConnectorNameAlreadyExistsException.class)
+  ProblemDetail handleConnectorNameAlreadyExists(ConnectorNameAlreadyExistsException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+    problem.setType(CONNECTOR_NAME_ALREADY_EXISTS_TYPE);
+    problem.setTitle("Connector name already exists");
+    problem.setProperty("code", "CONNECTOR_NAME_ALREADY_EXISTS");
+    return problem;
+  }
+
+  @ExceptionHandler(ConnectorNotFoundException.class)
+  ProblemDetail handleConnectorNotFound(ConnectorNotFoundException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+    problem.setType(CONNECTOR_NOT_FOUND_TYPE);
+    problem.setTitle("Connector not found");
+    problem.setProperty("code", "CONNECTOR_NOT_FOUND");
+    return problem;
+  }
+
+  @ExceptionHandler(InvalidConnectorConfigurationException.class)
+  ProblemDetail handleInvalidConnectorConfiguration(
+      InvalidConnectorConfigurationException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+    problem.setType(INVALID_CONNECTOR_CONFIGURATION_TYPE);
+    problem.setTitle("Invalid connector configuration");
+    problem.setProperty("code", "INVALID_CONNECTOR_CONFIGURATION");
+    return problem;
+  }
+
+  @ExceptionHandler(ConnectorAlreadyActiveException.class)
+  ProblemDetail handleConnectorAlreadyActive(ConnectorAlreadyActiveException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+    problem.setType(CONNECTOR_ALREADY_ACTIVE_TYPE);
+    problem.setTitle("Connector already active");
+    problem.setProperty("code", "CONNECTOR_ALREADY_ACTIVE");
+    return problem;
+  }
+
+  @ExceptionHandler(ConnectorAlreadySuspendedException.class)
+  ProblemDetail handleConnectorAlreadySuspended(ConnectorAlreadySuspendedException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+    problem.setType(CONNECTOR_ALREADY_SUSPENDED_TYPE);
+    problem.setTitle("Connector already suspended");
+    problem.setProperty("code", "CONNECTOR_ALREADY_SUSPENDED");
+    return problem;
+  }
+
+  @ExceptionHandler(ConnectorNotActiveException.class)
+  ProblemDetail handleConnectorNotActive(ConnectorNotActiveException exception) {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+    problem.setType(CONNECTOR_NOT_ACTIVE_TYPE);
+    problem.setTitle("Connector is not active");
+    problem.setProperty("code", "CONNECTOR_NOT_ACTIVE");
     return problem;
   }
 
