@@ -15,15 +15,22 @@ class PlatformServiceArchitectureTest {
 
   private static final String PLATFORM_PACKAGE = "io.github.khaledshawki.eoc.platform";
   private static final String TENANT_ACCESS_PACKAGE = "io.github.khaledshawki.eoc.tenantaccess";
+  private static final String CONNECTOR_MANAGEMENT_PACKAGE =
+      "io.github.khaledshawki.eoc.connectormanagement";
   private static final String INPUT_PORT_PACKAGE = TENANT_ACCESS_PACKAGE + ".application.port.in..";
   private static final String OUTPUT_PORT_PACKAGE =
       TENANT_ACCESS_PACKAGE + ".application.port.out..";
+  private static final String CONNECTOR_OUTPUT_PORT_PACKAGE =
+      CONNECTOR_MANAGEMENT_PACKAGE + ".application.port.out..";
   private static final String APPLICATION_SERVICE_PACKAGE =
       TENANT_ACCESS_PACKAGE + ".application.service..";
   private static final String TENANT_WEB_ADAPTER_PACKAGE =
       PLATFORM_PACKAGE + ".tenantaccess.adapter.in.web..";
   private static final String TENANT_PERSISTENCE_ADAPTER_PACKAGE =
       PLATFORM_PACKAGE + ".tenantaccess.adapter.out.persistence..";
+  private static final String CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE =
+      PLATFORM_PACKAGE + ".connectormanagement.adapter.out.persistence..";
+  private static final String PERSISTENCE_SUPPORT_PACKAGE = PLATFORM_PACKAGE + ".persistence..";
   private static final String TENANT_CONFIGURATION_PACKAGE =
       PLATFORM_PACKAGE + ".tenantaccess.configuration..";
 
@@ -84,10 +91,26 @@ class PlatformServiceArchitectureTest {
   }
 
   @Test
+  void connectorPersistenceAdaptersImplementConnectorOutputPorts() {
+    classes()
+        .that()
+        .resideInAPackage(CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
+        .and()
+        .haveSimpleNameEndingWith("PersistenceAdapter")
+        .should()
+        .implement(JavaClass.Predicates.resideInAPackage(CONNECTOR_OUTPUT_PORT_PACKAGE))
+        .because("connector persistence must implement connector-owned output ports")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
   void persistenceFrameworksRemainInsidePersistenceAdapters() {
     noClasses()
         .that()
-        .resideOutsideOfPackage(TENANT_PERSISTENCE_ADAPTER_PACKAGE)
+        .resideOutsideOfPackages(
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE,
+            CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE,
+            PERSISTENCE_SUPPORT_PACKAGE)
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
@@ -109,12 +132,38 @@ class PlatformServiceArchitectureTest {
   }
 
   @Test
+  void connectorPersistenceIsNotUsedByOtherContextsOrLayers() {
+    noClasses()
+        .that()
+        .resideOutsideOfPackage(CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
+        .should()
+        .dependOnClassesThat()
+        .resideInAPackage(CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
+        .because("other contexts must collaborate through connector ports")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void persistenceSupportIsUsedOnlyByPersistenceAdapters() {
+    noClasses()
+        .that()
+        .resideOutsideOfPackages(
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
+        .should()
+        .dependOnClassesThat()
+        .resideInAPackage(PERSISTENCE_SUPPORT_PACKAGE)
+        .because("shared persistence support must not leak into other layers")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
   void springDataRepositoriesRemainInternalToPersistence() {
     classes()
         .that()
         .areAssignableTo(Repository.class)
         .should()
-        .resideInAPackage(TENANT_PERSISTENCE_ADAPTER_PACKAGE)
+        .resideInAnyPackage(
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
         .andShould()
         .notBePublic()
         .because("framework repositories are persistence details, not application ports")
@@ -127,7 +176,8 @@ class PlatformServiceArchitectureTest {
         .that()
         .areAnnotatedWith(Entity.class)
         .should()
-        .resideInAPackage(TENANT_PERSISTENCE_ADAPTER_PACKAGE)
+        .resideInAnyPackage(
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
         .andShould()
         .notBePublic()
         .because("JPA entities are private persistence representations")
@@ -138,7 +188,8 @@ class PlatformServiceArchitectureTest {
   void persistenceRepresentationsDoNotLeakOutsidePersistence() {
     noClasses()
         .that()
-        .resideOutsideOfPackage(TENANT_PERSISTENCE_ADAPTER_PACKAGE)
+        .resideOutsideOfPackages(
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
         .should()
         .dependOnClassesThat()
         .haveSimpleNameEndingWith("JpaEntity")
@@ -150,10 +201,11 @@ class PlatformServiceArchitectureTest {
   void persistenceAdaptersDoNotDependOnWebAdapters() {
     noClasses()
         .that()
-        .resideInAPackage(TENANT_PERSISTENCE_ADAPTER_PACKAGE)
+        .resideInAnyPackage(
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
         .should()
         .dependOnClassesThat()
-        .resideInAPackage(TENANT_WEB_ADAPTER_PACKAGE)
+        .resideInAPackage("..adapter.in.web..")
         .because("outbound adapters must remain independent of inbound adapters")
         .check(PLATFORM_CLASSES);
   }

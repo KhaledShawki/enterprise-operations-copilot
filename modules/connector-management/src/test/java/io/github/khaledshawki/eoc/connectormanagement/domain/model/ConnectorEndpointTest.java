@@ -46,4 +46,13 @@ class ConnectorEndpointTest {
         () -> ConnectorEndpoint.of("https://erp.example.com/api#credentials"));
     assertThrows(NullPointerException.class, () -> new ConnectorEndpoint(null));
   }
+
+  @Test
+  void shouldRejectOversizedEndpoint() {
+    String oversizedPath = "a".repeat(ConnectorEndpoint.MAX_LENGTH);
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> ConnectorEndpoint.of("https://erp.example.com/" + oversizedPath));
+  }
 }

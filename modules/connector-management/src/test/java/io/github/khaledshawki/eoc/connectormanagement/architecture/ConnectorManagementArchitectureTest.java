@@ -12,6 +12,8 @@ class ConnectorManagementArchitectureTest {
 
   private static final String CONNECTOR_PACKAGE = "io.github.khaledshawki.eoc.connectormanagement";
   private static final String DOMAIN_PACKAGE = CONNECTOR_PACKAGE + ".domain..";
+  private static final String APPLICATION_PACKAGE = CONNECTOR_PACKAGE + ".application..";
+  private static final String OUTPUT_PORT_PACKAGE = CONNECTOR_PACKAGE + ".application.port.out..";
 
   private static final JavaClasses CONNECTOR_CLASSES =
       new ClassFileImporter()
@@ -51,6 +53,29 @@ class ConnectorManagementArchitectureTest {
         .dependOnClassesThat()
         .resideInAPackage("io.github.khaledshawki.eoc.tenantaccess..")
         .because("bounded contexts must communicate through explicit contracts")
+        .check(CONNECTOR_CLASSES);
+  }
+
+  @Test
+  void applicationDependsOnlyOnApplicationDomainAndTheJdk() {
+    classes()
+        .that()
+        .resideInAPackage(APPLICATION_PACKAGE)
+        .should()
+        .onlyDependOnClassesThat()
+        .resideInAnyPackage(APPLICATION_PACKAGE, DOMAIN_PACKAGE, "java..")
+        .because("connector application contracts must remain infrastructure independent")
+        .check(CONNECTOR_CLASSES);
+  }
+
+  @Test
+  void outputPortsAreInterfaces() {
+    classes()
+        .that()
+        .resideInAPackage(OUTPUT_PORT_PACKAGE)
+        .should()
+        .beInterfaces()
+        .because("outbound infrastructure must implement application-owned contracts")
         .check(CONNECTOR_CLASSES);
   }
 }

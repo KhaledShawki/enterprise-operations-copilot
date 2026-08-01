@@ -55,13 +55,13 @@ class PlatformHealthApiIT {
             """
             SELECT version
             FROM flyway_schema_history
-            WHERE version IN ('1', '2', '3')
+            WHERE version IN ('1', '2', '3', '4')
               AND success = TRUE
             ORDER BY installed_rank
             """,
             String.class);
 
-    assertEquals(List.of("1", "2", "3"), successfulMigrationVersions);
+    assertEquals(List.of("1", "2", "3", "4"), successfulMigrationVersions);
     assertEquals("validate", environment.getRequiredProperty("spring.jpa.hibernate.ddl-auto"));
   }
 
