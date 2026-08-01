@@ -6,6 +6,8 @@ import java.util.Objects;
 
 public record ConnectorEndpoint(URI value) {
 
+  public static final int MAX_LENGTH = 2048;
+
   public ConnectorEndpoint {
     Objects.requireNonNull(value, "Connector endpoint cannot be null");
 
@@ -28,6 +30,11 @@ public record ConnectorEndpoint(URI value) {
 
     if (value.getFragment() != null) {
       throw new IllegalArgumentException("Connector endpoint cannot contain a fragment");
+    }
+
+    if (value.toString().length() > MAX_LENGTH) {
+      throw new IllegalArgumentException(
+          "Connector endpoint cannot be longer than " + MAX_LENGTH + " characters");
     }
   }
 

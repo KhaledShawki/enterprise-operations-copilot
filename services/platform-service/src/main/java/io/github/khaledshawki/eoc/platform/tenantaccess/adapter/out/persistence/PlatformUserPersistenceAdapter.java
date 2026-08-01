@@ -1,5 +1,6 @@
 package io.github.khaledshawki.eoc.platform.tenantaccess.adapter.out.persistence;
 
+import io.github.khaledshawki.eoc.platform.persistence.PersistenceConstraintViolationDetector;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.ExternalIdentityAlreadyExistsException;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.PlatformUserRepository;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.ExternalIdentity;
