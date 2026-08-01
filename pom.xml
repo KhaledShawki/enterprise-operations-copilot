@@ -60,6 +60,7 @@
 
   <modules>
     <module>modules/tenant-access</module>
+    <module>modules/connector-management</module>
     <module>services/platform-service</module>
   </modules>
 
