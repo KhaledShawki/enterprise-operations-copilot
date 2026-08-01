@@ -99,6 +99,19 @@ class ConnectorPersistenceAdapterIT {
   }
 
   @Test
+  void shouldListTenantConnectorsInStableNameOrder() {
+    Connector zebra = connectorRepository.save(connector(TENANT_ID, "Zebra ERP"));
+    Connector alpha = connectorRepository.save(connector(TENANT_ID, "Alpha ERP"));
+    connectorRepository.save(connector(OTHER_TENANT_ID, "Other ERP"));
+
+    List<Connector> connectors = connectorRepository.findAllByTenantId(TENANT_ID);
+
+    assertEquals(List.of(alpha.id(), zebra.id()), connectors.stream().map(Connector::id).toList());
+    assertTrue(
+        connectorRepository.findAllByTenantId(ConnectorTenantId.of(UUID.randomUUID())).isEmpty());
+  }
+
+  @Test
   void shouldUpdateMutableConnectorStateAndIncrementVersion() {
     Connector connector = connectorRepository.save(connector(TENANT_ID, "Primary ERP"));
 
