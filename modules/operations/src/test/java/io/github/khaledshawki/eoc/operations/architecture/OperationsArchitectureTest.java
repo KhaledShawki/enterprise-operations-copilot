@@ -1,4 +1,4 @@
-package io.github.khaledshawki.eoc.connectormanagement.architecture;
+package io.github.khaledshawki.eoc.operations.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
@@ -8,18 +8,18 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 
-class ConnectorManagementArchitectureTest {
+class OperationsArchitectureTest {
 
-  private static final String CONNECTOR_PACKAGE = "io.github.khaledshawki.eoc.connectormanagement";
-  private static final String DOMAIN_PACKAGE = CONNECTOR_PACKAGE + ".domain..";
-  private static final String APPLICATION_PACKAGE = CONNECTOR_PACKAGE + ".application..";
-  private static final String INPUT_PORT_PACKAGE = CONNECTOR_PACKAGE + ".application.port.in..";
-  private static final String OUTPUT_PORT_PACKAGE = CONNECTOR_PACKAGE + ".application.port.out..";
+  private static final String OPERATIONS_PACKAGE = "io.github.khaledshawki.eoc.operations";
+  private static final String DOMAIN_PACKAGE = OPERATIONS_PACKAGE + ".domain..";
+  private static final String APPLICATION_PACKAGE = OPERATIONS_PACKAGE + ".application..";
+  private static final String INPUT_PORT_PACKAGE = OPERATIONS_PACKAGE + ".application.port.in..";
+  private static final String OUTPUT_PORT_PACKAGE = OPERATIONS_PACKAGE + ".application.port.out..";
 
-  private static final JavaClasses CONNECTOR_CLASSES =
+  private static final JavaClasses OPERATIONS_CLASSES =
       new ClassFileImporter()
           .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
-          .importPackages(CONNECTOR_PACKAGE);
+          .importPackages(OPERATIONS_PACKAGE);
 
   @Test
   void domainDependsOnlyOnDomainTypesAndTheJdk() {
@@ -29,8 +29,8 @@ class ConnectorManagementArchitectureTest {
         .should()
         .onlyDependOnClassesThat()
         .resideInAnyPackage(DOMAIN_PACKAGE, "java..")
-        .because("the connector domain must remain independent of application and infrastructure")
-        .check(CONNECTOR_CLASSES);
+        .because("the Operations domain must remain independent of application and infrastructure")
+        .check(OPERATIONS_CLASSES);
   }
 
   @Test
@@ -43,8 +43,8 @@ class ConnectorManagementArchitectureTest {
             "jakarta.persistence..",
             "javax.persistence..",
             "org.hibernate..")
-        .because("connector-management must remain framework independent")
-        .check(CONNECTOR_CLASSES);
+        .because("the Operations module must remain framework independent")
+        .check(OPERATIONS_CLASSES);
   }
 
   @Test
@@ -53,9 +53,10 @@ class ConnectorManagementArchitectureTest {
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
-            "io.github.khaledshawki.eoc.tenantaccess..", "io.github.khaledshawki.eoc.operations..")
-        .because("bounded contexts must communicate through explicit contracts")
-        .check(CONNECTOR_CLASSES);
+            "io.github.khaledshawki.eoc.tenantaccess..",
+            "io.github.khaledshawki.eoc.connectormanagement..")
+        .because("Operations must own its contracts instead of sharing another context's model")
+        .check(OPERATIONS_CLASSES);
   }
 
   @Test
@@ -66,8 +67,8 @@ class ConnectorManagementArchitectureTest {
         .should()
         .onlyDependOnClassesThat()
         .resideInAnyPackage(APPLICATION_PACKAGE, DOMAIN_PACKAGE, "java..")
-        .because("connector application contracts must remain infrastructure independent")
-        .check(CONNECTOR_CLASSES);
+        .because("Operations application contracts must remain infrastructure independent")
+        .check(OPERATIONS_CLASSES);
   }
 
   @Test
@@ -77,8 +78,8 @@ class ConnectorManagementArchitectureTest {
         .resideInAPackage(OUTPUT_PORT_PACKAGE)
         .should()
         .beInterfaces()
-        .because("outbound infrastructure must implement application-owned contracts")
-        .check(CONNECTOR_CLASSES);
+        .because("outbound infrastructure must implement Operations-owned contracts")
+        .check(OPERATIONS_CLASSES);
   }
 
   @Test
@@ -90,7 +91,7 @@ class ConnectorManagementArchitectureTest {
         .haveSimpleNameEndingWith("UseCase")
         .should()
         .beInterfaces()
-        .because("inbound adapters must depend on application-owned input ports")
-        .check(CONNECTOR_CLASSES);
+        .because("inbound adapters must depend on Operations-owned input ports")
+        .check(OPERATIONS_CLASSES);
   }
 }

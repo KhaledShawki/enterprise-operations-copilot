@@ -8,9 +8,11 @@ COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 COPY modules/tenant-access/pom.xml modules/tenant-access/pom.xml
 COPY modules/connector-management/pom.xml modules/connector-management/pom.xml
+COPY modules/operations/pom.xml modules/operations/pom.xml
 COPY services/platform-service/pom.xml services/platform-service/pom.xml
 COPY modules/tenant-access/src/ modules/tenant-access/src/
 COPY modules/connector-management/src/ modules/connector-management/src/
+COPY modules/operations/src/ modules/operations/src/
 COPY services/platform-service/src/ services/platform-service/src/
 
 RUN --mount=type=cache,target=/root/.m2 \
