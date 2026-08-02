@@ -18,6 +18,7 @@ class PlatformServiceArchitectureTest {
   private static final String TENANT_ACCESS_PACKAGE = "io.github.khaledshawki.eoc.tenantaccess";
   private static final String CONNECTOR_MANAGEMENT_PACKAGE =
       "io.github.khaledshawki.eoc.connectormanagement";
+  private static final String OPERATIONS_PACKAGE = "io.github.khaledshawki.eoc.operations";
   private static final String INPUT_PORT_PACKAGE = TENANT_ACCESS_PACKAGE + ".application.port.in..";
   private static final String OUTPUT_PORT_PACKAGE =
       TENANT_ACCESS_PACKAGE + ".application.port.out..";
@@ -41,6 +42,12 @@ class PlatformServiceArchitectureTest {
       PLATFORM_PACKAGE + ".connectormanagement.adapter.in.web..";
   private static final String CONNECTOR_CONFIGURATION_PACKAGE =
       PLATFORM_PACKAGE + ".connectormanagement.configuration..";
+  private static final String OPERATIONS_OUTPUT_PORT_PACKAGE =
+      OPERATIONS_PACKAGE + ".application.port.out..";
+  private static final String OPERATIONS_PERSISTENCE_ADAPTER_PACKAGE =
+      PLATFORM_PACKAGE + ".operations.adapter.out.persistence..";
+  private static final String OPERATIONS_CONFIGURATION_PACKAGE =
+      PLATFORM_PACKAGE + ".operations.configuration..";
   private static final String PERSISTENCE_SUPPORT_PACKAGE = PLATFORM_PACKAGE + ".persistence..";
   private static final String TENANT_CONFIGURATION_PACKAGE =
       PLATFORM_PACKAGE + ".tenantaccess.configuration..";
@@ -111,6 +118,19 @@ class PlatformServiceArchitectureTest {
         .should()
         .implement(JavaClass.Predicates.resideInAPackage(CONNECTOR_OUTPUT_PORT_PACKAGE))
         .because("connector persistence must implement connector-owned output ports")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void operationsPersistenceAdaptersImplementOperationsOutputPorts() {
+    classes()
+        .that()
+        .resideInAPackage(OPERATIONS_PERSISTENCE_ADAPTER_PACKAGE)
+        .and()
+        .haveSimpleNameEndingWith("PersistenceAdapter")
+        .should()
+        .implement(JavaClass.Predicates.resideInAPackage(OPERATIONS_OUTPUT_PORT_PACKAGE))
+        .because("Operations persistence must implement Operations-owned output ports")
         .check(PLATFORM_CLASSES);
   }
 
@@ -187,12 +207,25 @@ class PlatformServiceArchitectureTest {
   }
 
   @Test
+  void operationsInfrastructureDoesNotDependOnConnectorOrTenantContexts() {
+    noClasses()
+        .that()
+        .resideInAPackage(PLATFORM_PACKAGE + ".operations..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(CONNECTOR_MANAGEMENT_PACKAGE + "..", TENANT_ACCESS_PACKAGE + "..")
+        .because("cross-context translation belongs to an explicit composition adapter")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
   void persistenceFrameworksRemainInsidePersistenceAdapters() {
     noClasses()
         .that()
         .resideOutsideOfPackages(
             TENANT_PERSISTENCE_ADAPTER_PACKAGE,
             CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE,
+            OPERATIONS_PERSISTENCE_ADAPTER_PACKAGE,
             PERSISTENCE_SUPPORT_PACKAGE)
         .should()
         .dependOnClassesThat()
@@ -227,11 +260,26 @@ class PlatformServiceArchitectureTest {
   }
 
   @Test
+  void operationsPersistenceIsNotUsedByOtherContextsOrLayers() {
+    noClasses()
+        .that()
+        .resideOutsideOfPackages(
+            OPERATIONS_PERSISTENCE_ADAPTER_PACKAGE, OPERATIONS_CONFIGURATION_PACKAGE)
+        .should()
+        .dependOnClassesThat()
+        .resideInAPackage(OPERATIONS_PERSISTENCE_ADAPTER_PACKAGE)
+        .because("other contexts must collaborate through Operations ports")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
   void persistenceSupportIsUsedOnlyByPersistenceAdapters() {
     noClasses()
         .that()
         .resideOutsideOfPackages(
-            TENANT_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE,
+            CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE,
+            OPERATIONS_PERSISTENCE_ADAPTER_PACKAGE)
         .should()
         .dependOnClassesThat()
         .resideInAPackage(PERSISTENCE_SUPPORT_PACKAGE)
@@ -246,7 +294,9 @@ class PlatformServiceArchitectureTest {
         .areAssignableTo(Repository.class)
         .should()
         .resideInAnyPackage(
-            TENANT_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE,
+            CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE,
+            OPERATIONS_PERSISTENCE_ADAPTER_PACKAGE)
         .andShould()
         .notBePublic()
         .because("framework repositories are persistence details, not application ports")
@@ -260,7 +310,9 @@ class PlatformServiceArchitectureTest {
         .areAnnotatedWith(Entity.class)
         .should()
         .resideInAnyPackage(
-            TENANT_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE,
+            CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE,
+            OPERATIONS_PERSISTENCE_ADAPTER_PACKAGE)
         .andShould()
         .notBePublic()
         .because("JPA entities are private persistence representations")
@@ -272,7 +324,9 @@ class PlatformServiceArchitectureTest {
     noClasses()
         .that()
         .resideOutsideOfPackages(
-            TENANT_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE,
+            CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE,
+            OPERATIONS_PERSISTENCE_ADAPTER_PACKAGE)
         .should()
         .dependOnClassesThat()
         .haveSimpleNameEndingWith("JpaEntity")
@@ -285,7 +339,9 @@ class PlatformServiceArchitectureTest {
     noClasses()
         .that()
         .resideInAnyPackage(
-            TENANT_PERSISTENCE_ADAPTER_PACKAGE, CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE)
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE,
+            CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE,
+            OPERATIONS_PERSISTENCE_ADAPTER_PACKAGE)
         .should()
         .dependOnClassesThat()
         .resideInAPackage("..adapter.in.web..")
