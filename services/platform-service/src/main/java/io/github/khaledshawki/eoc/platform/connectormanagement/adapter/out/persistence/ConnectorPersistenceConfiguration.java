@@ -10,4 +10,9 @@ public class ConnectorPersistenceConfiguration {
   ConnectorPersistenceMapper connectorPersistenceMapper() {
     return new ConnectorPersistenceMapper();
   }
+
+  @Bean
+  ImportRunPersistenceMapper importRunPersistenceMapper() {
+    return new ImportRunPersistenceMapper();
+  }
 }
