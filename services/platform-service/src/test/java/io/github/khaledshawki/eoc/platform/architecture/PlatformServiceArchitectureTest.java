@@ -9,6 +9,7 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSource;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessPartnerImportPort;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
 import jakarta.persistence.Entity;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.repository.Repository;
@@ -51,6 +52,8 @@ class PlatformServiceArchitectureTest {
       PLATFORM_PACKAGE + ".operations.configuration..";
   private static final String CONNECTOR_OPERATIONS_INTEGRATION_PACKAGE =
       PLATFORM_PACKAGE + ".integration.connectormanagement.operations..";
+  private static final String CONNECTOR_TENANT_ACCESS_INTEGRATION_PACKAGE =
+      PLATFORM_PACKAGE + ".integration.connectormanagement.tenantaccess..";
   private static final String PERSISTENCE_SUPPORT_PACKAGE = PLATFORM_PACKAGE + ".persistence..";
   private static final String TENANT_CONFIGURATION_PACKAGE =
       PLATFORM_PACKAGE + ".tenantaccess.configuration..";
@@ -158,6 +161,51 @@ class PlatformServiceArchitectureTest {
         .should()
         .resideInAPackage(CONNECTOR_OPERATIONS_INTEGRATION_PACKAGE)
         .because("cross-context translation must remain in its explicit composition adapter")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorTenantAuthorizationImplementsTheConnectorOwnedPort() {
+    classes()
+        .that()
+        .implement(ConnectorAuthorizationPort.class)
+        .should()
+        .resideInAPackage(CONNECTOR_TENANT_ACCESS_INTEGRATION_PACKAGE)
+        .because("tenant authorization translation belongs to its explicit integration adapter")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorInfrastructureDoesNotDependDirectlyOnTenantAccess() {
+    noClasses()
+        .that()
+        .resideInAnyPackage(
+            CONNECTOR_WEB_ADAPTER_PACKAGE,
+            CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE,
+            CONNECTOR_DATA_SOURCE_ADAPTER_PACKAGE,
+            CONNECTOR_CONFIGURATION_PACKAGE)
+        .should()
+        .dependOnClassesThat()
+        .resideInAPackage(TENANT_ACCESS_PACKAGE + "..")
+        .because(
+            "connector infrastructure must use connector-owned ports instead of tenant contracts")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorTenantAuthorizationDoesNotBypassTenantInputPorts() {
+    noClasses()
+        .that()
+        .resideInAPackage(CONNECTOR_TENANT_ACCESS_INTEGRATION_PACKAGE)
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            TENANT_ACCESS_PACKAGE + ".domain..",
+            TENANT_ACCESS_PACKAGE + ".application.service..",
+            TENANT_ACCESS_PACKAGE + ".application.port.out..",
+            PLATFORM_PACKAGE + ".tenantaccess.adapter..",
+            TENANT_CONFIGURATION_PACKAGE)
+        .because("cross-context authorization must depend only on Tenant Access input ports")
         .check(PLATFORM_CLASSES);
   }
 
