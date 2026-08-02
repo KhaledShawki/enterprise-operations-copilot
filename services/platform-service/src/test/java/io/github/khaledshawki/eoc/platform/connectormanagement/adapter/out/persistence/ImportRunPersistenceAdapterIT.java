@@ -289,4 +289,15 @@ class ImportRunPersistenceAdapterIT {
       return Clock.fixed(NOW, ZoneOffset.UTC);
     }
   }
+
+  @Test
+  void shouldReturnTheDatabaseCanonicalFinishTimestampAfterSavingACompletedRun() {
+    ImportRun running = runningRun();
+    running.complete(Instant.parse("2026-08-02T10:00:00.123456789Z"));
+
+    ImportRun saved = importRunRepository.save(running);
+    ImportRun reloaded = importRunRepository.findById(TENANT_ID, saved.id()).orElseThrow();
+
+    assertEquals(saved.finishedAt(), reloaded.finishedAt());
+  }
 }

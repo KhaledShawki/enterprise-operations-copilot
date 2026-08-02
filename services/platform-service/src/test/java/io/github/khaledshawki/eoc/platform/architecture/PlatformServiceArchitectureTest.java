@@ -8,6 +8,7 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSource;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessPartnerImportPort;
 import jakarta.persistence.Entity;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.repository.Repository;
@@ -48,6 +49,8 @@ class PlatformServiceArchitectureTest {
       PLATFORM_PACKAGE + ".operations.adapter.out.persistence..";
   private static final String OPERATIONS_CONFIGURATION_PACKAGE =
       PLATFORM_PACKAGE + ".operations.configuration..";
+  private static final String CONNECTOR_OPERATIONS_INTEGRATION_PACKAGE =
+      PLATFORM_PACKAGE + ".integration.connectormanagement.operations..";
   private static final String PERSISTENCE_SUPPORT_PACKAGE = PLATFORM_PACKAGE + ".persistence..";
   private static final String TENANT_CONFIGURATION_PACKAGE =
       PLATFORM_PACKAGE + ".tenantaccess.configuration..";
@@ -144,6 +147,17 @@ class PlatformServiceArchitectureTest {
         .should()
         .implement(BusinessDataSource.class)
         .because("external business data adapters must implement their exact connector-owned port")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorOperationsTranslationImplementsTheConnectorOwnedImportPort() {
+    classes()
+        .that()
+        .implement(BusinessPartnerImportPort.class)
+        .should()
+        .resideInAPackage(CONNECTOR_OPERATIONS_INTEGRATION_PACKAGE)
+        .because("cross-context translation must remain in its explicit composition adapter")
         .check(PLATFORM_CLASSES);
   }
 

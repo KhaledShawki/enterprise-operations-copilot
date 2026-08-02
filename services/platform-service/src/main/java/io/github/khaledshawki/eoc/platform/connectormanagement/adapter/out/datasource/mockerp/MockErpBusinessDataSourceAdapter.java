@@ -26,7 +26,9 @@ import io.github.khaledshawki.eoc.platform.connectormanagement.adapter.out.datas
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import org.springframework.stereotype.Component;
 
+@Component
 final class MockErpBusinessDataSourceAdapter implements BusinessDataSource {
 
   static final ConnectorType CONNECTOR_TYPE = ConnectorType.of("mock-erp");

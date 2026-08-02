@@ -14,6 +14,7 @@ import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportRunId;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportStatus;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportType;
 import io.github.khaledshawki.eoc.platform.persistence.PersistenceConstraintViolationDetector;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.EnumSet;
@@ -41,12 +42,15 @@ class ImportRunPersistenceAdapter implements ImportRunRepository {
   private final ImportRunPersistenceMapper importRunPersistenceMapper;
   private final Clock clock;
 
+  private final EntityManager entityManager;
+
   ImportRunPersistenceAdapter(
       SpringDataImportRunRepository importRunRepository,
       SpringDataImportCheckpointRepository checkpointRepository,
       SpringDataImportPageAcceptanceRepository acceptanceRepository,
       ImportRunPersistenceMapper importRunPersistenceMapper,
-      Clock clock) {
+      Clock clock,
+      EntityManager entityManager) {
     this.importRunRepository =
         Objects.requireNonNull(importRunRepository, "Import run repository cannot be null");
     this.checkpointRepository =
@@ -57,6 +61,7 @@ class ImportRunPersistenceAdapter implements ImportRunRepository {
     this.importRunPersistenceMapper =
         Objects.requireNonNull(importRunPersistenceMapper, "Import run mapper cannot be null");
     this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
+    this.entityManager = Objects.requireNonNull(entityManager, "Entity manager cannot be null");
   }
 
   @Override
@@ -64,7 +69,9 @@ class ImportRunPersistenceAdapter implements ImportRunRepository {
   public ImportRun save(ImportRun importRun) {
     Objects.requireNonNull(importRun, "Import run cannot be null");
     try {
-      return saveAndFlush(importRun, clock.instant());
+      ImportRunJpaEntity savedEntity = saveAndFlushEntity(importRun, clock.instant());
+      entityManager.refresh(savedEntity);
+      return importRunPersistenceMapper.toDomain(savedEntity);
     } catch (DataIntegrityViolationException exception) {
       if (PersistenceConstraintViolationDetector.hasConstraintName(
           exception, ACTIVE_IMPORT_UNIQUE_INDEX)) {
@@ -140,21 +147,22 @@ class ImportRunPersistenceAdapter implements ImportRunRepository {
       if (inserted == 0) {
         throw new ImportPageAlreadyAcceptedException(importRun.id(), acceptanceId);
       }
-      ImportRun saved = saveAndFlush(importRun, now);
+      ImportRunJpaEntity savedEntity = saveAndFlushEntity(importRun, now);
       checkpoint.ifPresent(value -> saveCheckpoint(value, importRun.id(), now));
-      return saved;
+      return importRunPersistenceMapper.toDomain(savedEntity);
     } catch (ObjectOptimisticLockingFailureException exception) {
       throw new ConcurrentImportRunModificationException(importRun.id(), exception);
     }
   }
 
-  private ImportRun saveAndFlush(ImportRun importRun, Instant now) {
+  private ImportRunJpaEntity saveAndFlushEntity(ImportRun importRun, Instant now) {
     ImportRunJpaEntity entity =
         importRunRepository
             .findByIdAndTenantId(importRun.id().value(), importRun.tenantId().value())
             .map(existing -> importRunPersistenceMapper.updateEntity(importRun, existing, now))
             .orElseGet(() -> importRunPersistenceMapper.toEntity(importRun, now));
-    return importRunPersistenceMapper.toDomain(importRunRepository.saveAndFlush(entity));
+
+    return importRunRepository.saveAndFlush(entity);
   }
 
   private void saveCheckpoint(ImportCheckpoint checkpoint, ImportRunId importRunId, Instant now) {
