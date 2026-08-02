@@ -7,6 +7,7 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSource;
 import jakarta.persistence.Entity;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.repository.Repository;
@@ -34,6 +35,8 @@ class PlatformServiceArchitectureTest {
       PLATFORM_PACKAGE + ".tenantaccess.adapter.out.persistence..";
   private static final String CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE =
       PLATFORM_PACKAGE + ".connectormanagement.adapter.out.persistence..";
+  private static final String CONNECTOR_DATA_SOURCE_ADAPTER_PACKAGE =
+      PLATFORM_PACKAGE + ".connectormanagement.adapter.out.datasource..";
   private static final String CONNECTOR_WEB_ADAPTER_PACKAGE =
       PLATFORM_PACKAGE + ".connectormanagement.adapter.in.web..";
   private static final String CONNECTOR_CONFIGURATION_PACKAGE =
@@ -108,6 +111,40 @@ class PlatformServiceArchitectureTest {
         .should()
         .implement(JavaClass.Predicates.resideInAPackage(CONNECTOR_OUTPUT_PORT_PACKAGE))
         .because("connector persistence must implement connector-owned output ports")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorDataSourceAdaptersImplementTheBusinessDataSourcePort() {
+    classes()
+        .that()
+        .resideInAPackage(CONNECTOR_DATA_SOURCE_ADAPTER_PACKAGE)
+        .and()
+        .haveSimpleNameEndingWith("DataSourceAdapter")
+        .should()
+        .implement(BusinessDataSource.class)
+        .because("external business data adapters must implement their exact connector-owned port")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorDataSourceAdaptersRemainIsolatedFromInboundPersistenceAndOtherContexts() {
+    noClasses()
+        .that()
+        .resideInAPackage(CONNECTOR_DATA_SOURCE_ADAPTER_PACKAGE)
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            CONNECTOR_WEB_ADAPTER_PACKAGE,
+            CONNECTOR_PERSISTENCE_ADAPTER_PACKAGE,
+            TENANT_WEB_ADAPTER_PACKAGE,
+            TENANT_PERSISTENCE_ADAPTER_PACKAGE,
+            CONNECTOR_CONFIGURATION_PACKAGE,
+            TENANT_ACCESS_PACKAGE + "..",
+            "io.github.khaledshawki.eoc.operations..")
+        .because(
+            "external source adapters must not bypass ports or couple bounded contexts through"
+                + " infrastructure")
         .check(PLATFORM_CLASSES);
   }
 
