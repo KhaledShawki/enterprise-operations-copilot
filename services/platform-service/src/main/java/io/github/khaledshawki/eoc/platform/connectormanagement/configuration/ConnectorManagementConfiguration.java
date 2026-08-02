@@ -10,6 +10,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ListCo
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.SuspendConnectorUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSourceRegistry;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessPartnerImportPort;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ImportRunRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.ActivateConnectorService;
@@ -28,28 +29,38 @@ import org.springframework.context.annotation.Configuration;
 public class ConnectorManagementConfiguration {
 
   @Bean
-  CreateConnectorUseCase createConnectorUseCase(ConnectorRepository connectorRepository) {
-    return new CreateConnectorService(connectorRepository);
+  CreateConnectorUseCase createConnectorUseCase(
+      ConnectorRepository connectorRepository,
+      ConnectorAuthorizationPort connectorAuthorizationPort) {
+    return new CreateConnectorService(connectorRepository, connectorAuthorizationPort);
   }
 
   @Bean
-  GetConnectorUseCase getConnectorUseCase(ConnectorRepository connectorRepository) {
-    return new GetConnectorService(connectorRepository);
+  GetConnectorUseCase getConnectorUseCase(
+      ConnectorRepository connectorRepository,
+      ConnectorAuthorizationPort connectorAuthorizationPort) {
+    return new GetConnectorService(connectorRepository, connectorAuthorizationPort);
   }
 
   @Bean
-  ListConnectorsUseCase listConnectorsUseCase(ConnectorRepository connectorRepository) {
-    return new ListConnectorsService(connectorRepository);
+  ListConnectorsUseCase listConnectorsUseCase(
+      ConnectorRepository connectorRepository,
+      ConnectorAuthorizationPort connectorAuthorizationPort) {
+    return new ListConnectorsService(connectorRepository, connectorAuthorizationPort);
   }
 
   @Bean
-  ActivateConnectorUseCase activateConnectorUseCase(ConnectorRepository connectorRepository) {
-    return new ActivateConnectorService(connectorRepository);
+  ActivateConnectorUseCase activateConnectorUseCase(
+      ConnectorRepository connectorRepository,
+      ConnectorAuthorizationPort connectorAuthorizationPort) {
+    return new ActivateConnectorService(connectorRepository, connectorAuthorizationPort);
   }
 
   @Bean
-  SuspendConnectorUseCase suspendConnectorUseCase(ConnectorRepository connectorRepository) {
-    return new SuspendConnectorService(connectorRepository);
+  SuspendConnectorUseCase suspendConnectorUseCase(
+      ConnectorRepository connectorRepository,
+      ConnectorAuthorizationPort connectorAuthorizationPort) {
+    return new SuspendConnectorService(connectorRepository, connectorAuthorizationPort);
   }
 
   @Bean

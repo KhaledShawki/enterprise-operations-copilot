@@ -1,5 +1,6 @@
 package io.github.khaledshawki.eoc.platform.web.error;
 
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAccessDeniedException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAlreadyActiveException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAlreadySuspendedException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNameAlreadyExistsException;
@@ -53,6 +54,7 @@ public class ApiExceptionHandler {
       URI.create("urn:eoc:problem:tenant-membership-already-active");
   private static final URI INVALID_TENANT_ROLE_KEY_TYPE =
       URI.create("urn:eoc:problem:invalid-tenant-role-key");
+  private static final URI ACCESS_DENIED_TYPE = URI.create("urn:eoc:problem:access-denied");
   private static final URI CONNECTOR_NAME_ALREADY_EXISTS_TYPE =
       URI.create("urn:eoc:problem:connector-name-already-exists");
   private static final URI CONNECTOR_NOT_FOUND_TYPE =
@@ -218,6 +220,17 @@ public class ApiExceptionHandler {
 
     problem.setProperty("code", "INVALID_TENANT_ROLE_KEY");
 
+    return problem;
+  }
+
+  @ExceptionHandler(ConnectorAccessDeniedException.class)
+  ProblemDetail handleConnectorAccessDenied() {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.FORBIDDEN, "You do not have permission to access this resource.");
+    problem.setType(ACCESS_DENIED_TYPE);
+    problem.setTitle("Access denied");
+    problem.setProperty("code", "ACCESS_DENIED");
     return problem;
   }
 

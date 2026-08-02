@@ -11,10 +11,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAccessDeniedException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAlreadyActiveException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNameAlreadyExistsException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNotFoundException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.InvalidConnectorConfigurationException;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.authorization.ConnectorActor;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.authorization.ConnectorPermission;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ActivateConnectorCommand;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ActivateConnectorUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ConnectorResult;
@@ -36,14 +39,21 @@ import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorTena
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorType;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.CredentialReference;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.SyncPolicy;
+import io.github.khaledshawki.eoc.platform.security.adapter.in.web.JwtAuthenticatedUserMapper;
+import io.github.khaledshawki.eoc.platform.security.model.AuthenticatedUser;
+import java.net.URI;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -57,6 +67,18 @@ class ConnectorControllerTest {
       UUID.fromString("00000000-0000-0000-0000-000000000012");
   private static final UUID CREDENTIAL_REFERENCE =
       UUID.fromString("00000000-0000-0000-0000-000000000020");
+  private static final URI ISSUER = URI.create("https://identity.example.com/realms/eoc");
+  private static final String SUBJECT = "connector-administrator";
+  private static final ConnectorActor ACTOR = new ConnectorActor(ISSUER.toString(), SUBJECT);
+  private static final AuthenticatedUser AUTHENTICATED_USER =
+      new AuthenticatedUser(ISSUER, SUBJECT, Set.of("tenant-admin"));
+  private static final JwtAuthenticationToken AUTHENTICATION =
+      new JwtAuthenticationToken(
+          Jwt.withTokenValue("connector-controller-test-token")
+              .header("alg", "none")
+              .issuer(ISSUER.toString())
+              .subject(SUBJECT)
+              .build());
   private static final String ENDPOINT = "/api/v1/tenants/" + TENANT_ID + "/connectors";
   private static final String CONNECTOR_ENDPOINT = ENDPOINT + "/" + CONNECTOR_ID;
   private static final String VALID_REQUEST =
@@ -80,6 +102,12 @@ class ConnectorControllerTest {
   @MockitoBean private GetConnectorUseCase getConnectorUseCase;
   @MockitoBean private ActivateConnectorUseCase activateConnectorUseCase;
   @MockitoBean private SuspendConnectorUseCase suspendConnectorUseCase;
+  @MockitoBean private JwtAuthenticatedUserMapper jwtAuthenticatedUserMapper;
+
+  @BeforeEach
+  void setUpAuthenticatedActor() {
+    when(jwtAuthenticatedUserMapper.map(AUTHENTICATION)).thenReturn(AUTHENTICATED_USER);
+  }
 
   @Test
   void shouldCreateConnector() throws Exception {
@@ -89,6 +117,7 @@ class ConnectorControllerTest {
     mockMvc
         .perform(
             post(ENDPOINT)
+                .principal(AUTHENTICATION)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .content(VALID_REQUEST))
@@ -114,6 +143,7 @@ class ConnectorControllerTest {
     mockMvc
         .perform(
             post(ENDPOINT)
+                .principal(AUTHENTICATION)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -146,48 +176,58 @@ class ConnectorControllerTest {
   void shouldListAndGetConnectors() throws Exception {
     ConnectorResult primary = result(CONNECTOR_ID, "Primary ERP");
     ConnectorResult warehouse = result(OTHER_CONNECTOR_ID, "Warehouse ERP");
-    when(listConnectorsUseCase.list(new ListConnectorsQuery(TENANT_ID)))
+    when(listConnectorsUseCase.list(new ListConnectorsQuery(ACTOR, TENANT_ID)))
         .thenReturn(new ListConnectorsResult(List.of(primary, warehouse)));
-    when(getConnectorUseCase.get(new GetConnectorQuery(TENANT_ID, CONNECTOR_ID)))
+    when(getConnectorUseCase.get(new GetConnectorQuery(ACTOR, TENANT_ID, CONNECTOR_ID)))
         .thenReturn(primary);
 
     mockMvc
-        .perform(get(ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .perform(get(ENDPOINT).principal(AUTHENTICATION).accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.connectors.length()").value(2))
         .andExpect(jsonPath("$.connectors[0].id").value(CONNECTOR_ID.toString()))
         .andExpect(jsonPath("$.connectors[1].name").value("Warehouse ERP"));
 
     mockMvc
-        .perform(get(CONNECTOR_ENDPOINT).accept(MediaType.APPLICATION_JSON))
+        .perform(
+            get(CONNECTOR_ENDPOINT).principal(AUTHENTICATION).accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(CONNECTOR_ID.toString()))
         .andExpect(jsonPath("$.name").value("Primary ERP"));
 
-    verify(listConnectorsUseCase).list(new ListConnectorsQuery(TENANT_ID));
-    verify(getConnectorUseCase).get(new GetConnectorQuery(TENANT_ID, CONNECTOR_ID));
+    verify(listConnectorsUseCase).list(new ListConnectorsQuery(ACTOR, TENANT_ID));
+    verify(getConnectorUseCase).get(new GetConnectorQuery(ACTOR, TENANT_ID, CONNECTOR_ID));
   }
 
   @Test
   void shouldActivateAndSuspendConnector() throws Exception {
-    when(activateConnectorUseCase.activate(new ActivateConnectorCommand(TENANT_ID, CONNECTOR_ID)))
+    when(activateConnectorUseCase.activate(
+            new ActivateConnectorCommand(ACTOR, TENANT_ID, CONNECTOR_ID)))
         .thenReturn(result(CONNECTOR_ID, "Primary ERP", ConnectorStatus.ACTIVE));
-    when(suspendConnectorUseCase.suspend(new SuspendConnectorCommand(TENANT_ID, CONNECTOR_ID)))
+    when(suspendConnectorUseCase.suspend(
+            new SuspendConnectorCommand(ACTOR, TENANT_ID, CONNECTOR_ID)))
         .thenReturn(result(CONNECTOR_ID, "Primary ERP", ConnectorStatus.SUSPENDED));
 
     mockMvc
-        .perform(post(CONNECTOR_ENDPOINT + "/activation").accept(MediaType.APPLICATION_JSON))
+        .perform(
+            post(CONNECTOR_ENDPOINT + "/activation")
+                .principal(AUTHENTICATION)
+                .accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("ACTIVE"));
 
     mockMvc
-        .perform(post(CONNECTOR_ENDPOINT + "/suspension").accept(MediaType.APPLICATION_JSON))
+        .perform(
+            post(CONNECTOR_ENDPOINT + "/suspension")
+                .principal(AUTHENTICATION)
+                .accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("SUSPENDED"));
 
     verify(activateConnectorUseCase)
-        .activate(new ActivateConnectorCommand(TENANT_ID, CONNECTOR_ID));
-    verify(suspendConnectorUseCase).suspend(new SuspendConnectorCommand(TENANT_ID, CONNECTOR_ID));
+        .activate(new ActivateConnectorCommand(ACTOR, TENANT_ID, CONNECTOR_ID));
+    verify(suspendConnectorUseCase)
+        .suspend(new SuspendConnectorCommand(ACTOR, TENANT_ID, CONNECTOR_ID));
   }
 
   @Test
@@ -197,25 +237,30 @@ class ConnectorControllerTest {
     ConnectorName connectorName = ConnectorName.of("Primary ERP");
     when(createConnectorUseCase.create(createCommand()))
         .thenThrow(new ConnectorNameAlreadyExistsException(tenantId, connectorName));
-    when(getConnectorUseCase.get(new GetConnectorQuery(TENANT_ID, CONNECTOR_ID)))
+    when(getConnectorUseCase.get(new GetConnectorQuery(ACTOR, TENANT_ID, CONNECTOR_ID)))
         .thenThrow(new ConnectorNotFoundException(tenantId, connectorId));
-    when(activateConnectorUseCase.activate(new ActivateConnectorCommand(TENANT_ID, CONNECTOR_ID)))
+    when(activateConnectorUseCase.activate(
+            new ActivateConnectorCommand(ACTOR, TENANT_ID, CONNECTOR_ID)))
         .thenThrow(new ConnectorAlreadyActiveException(tenantId, connectorId));
 
     mockMvc
-        .perform(post(ENDPOINT).contentType(MediaType.APPLICATION_JSON).content(VALID_REQUEST))
+        .perform(
+            post(ENDPOINT)
+                .principal(AUTHENTICATION)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(VALID_REQUEST))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.type").value("urn:eoc:problem:connector-name-already-exists"))
         .andExpect(jsonPath("$.code").value("CONNECTOR_NAME_ALREADY_EXISTS"));
 
     mockMvc
-        .perform(get(CONNECTOR_ENDPOINT))
+        .perform(get(CONNECTOR_ENDPOINT).principal(AUTHENTICATION))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.type").value("urn:eoc:problem:connector-not-found"))
         .andExpect(jsonPath("$.code").value("CONNECTOR_NOT_FOUND"));
 
     mockMvc
-        .perform(post(CONNECTOR_ENDPOINT + "/activation"))
+        .perform(post(CONNECTOR_ENDPOINT + "/activation").principal(AUTHENTICATION))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.type").value("urn:eoc:problem:connector-already-active"))
         .andExpect(jsonPath("$.code").value("CONNECTOR_ALREADY_ACTIVE"));
@@ -229,15 +274,39 @@ class ConnectorControllerTest {
                 "Manual sync policy interval must be zero", new IllegalArgumentException()));
 
     mockMvc
-        .perform(post(ENDPOINT).contentType(MediaType.APPLICATION_JSON).content(VALID_REQUEST))
+        .perform(
+            post(ENDPOINT)
+                .principal(AUTHENTICATION)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(VALID_REQUEST))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.type").value("urn:eoc:problem:invalid-connector-configuration"))
         .andExpect(jsonPath("$.code").value("INVALID_CONNECTOR_CONFIGURATION"))
         .andExpect(jsonPath("$.detail").value("Manual sync policy interval must be zero"));
   }
 
+  @Test
+  void shouldReturnGenericForbiddenProblemWhenApplicationAuthorizationDeniesAccess()
+      throws Exception {
+    when(getConnectorUseCase.get(new GetConnectorQuery(ACTOR, TENANT_ID, CONNECTOR_ID)))
+        .thenThrow(
+            new ConnectorAccessDeniedException(
+                ConnectorTenantId.of(TENANT_ID), ConnectorPermission.READ));
+
+    mockMvc
+        .perform(get(CONNECTOR_ENDPOINT).principal(AUTHENTICATION))
+        .andExpect(status().isForbidden())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:eoc:problem:access-denied"))
+        .andExpect(jsonPath("$.title").value("Access denied"))
+        .andExpect(jsonPath("$.code").value("ACCESS_DENIED"))
+        .andExpect(
+            jsonPath("$.detail").value("You do not have permission to access this resource."));
+  }
+
   private static CreateConnectorCommand createCommand() {
     return new CreateConnectorCommand(
+        ACTOR,
         TENANT_ID,
         "Primary ERP",
         "mock-erp",
