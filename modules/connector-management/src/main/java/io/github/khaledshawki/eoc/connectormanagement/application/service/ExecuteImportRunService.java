@@ -1,8 +1,10 @@
 package io.github.khaledshawki.eoc.connectormanagement.application.service;
 
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAccessDeniedException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorCannotStartImportException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNotFoundException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ImportRunNotExecutableException;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.authorization.ConnectorPermission;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceConfiguration;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceException;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceFailure;
@@ -26,6 +28,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.in.Schedu
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSource;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSourceRegistry;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessPartnerImportPort;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.Connector;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorId;
@@ -57,6 +60,7 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
           ImportFailureCategory.SOURCE_CONTRACT_VIOLATION, "business-data-source-not-registered");
 
   private final ConnectorRepository connectorRepository;
+  private final ConnectorAuthorizationPort connectorAuthorizationPort;
   private final ImportRunLifecycleUseCase importRunLifecycle;
   private final BusinessDataSourceRegistry dataSourceRegistry;
   private final BusinessPartnerImportPort businessPartnerImportPort;
@@ -65,6 +69,7 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
 
   public ExecuteImportRunService(
       ConnectorRepository connectorRepository,
+      ConnectorAuthorizationPort connectorAuthorizationPort,
       ImportRunLifecycleUseCase importRunLifecycle,
       BusinessDataSourceRegistry dataSourceRegistry,
       BusinessPartnerImportPort businessPartnerImportPort,
@@ -72,6 +77,9 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
       Clock clock) {
     this.connectorRepository =
         Objects.requireNonNull(connectorRepository, "Connector repository cannot be null");
+    this.connectorAuthorizationPort =
+        Objects.requireNonNull(
+            connectorAuthorizationPort, "Connector authorization port cannot be null");
     this.importRunLifecycle =
         Objects.requireNonNull(importRunLifecycle, "Import run lifecycle cannot be null");
     this.dataSourceRegistry =
@@ -86,6 +94,13 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
   @Override
   public ImportRunResult execute(ExecuteImportRunCommand command) {
     Objects.requireNonNull(command, "Command cannot be null");
+
+    ConnectorTenantId tenantId = ConnectorTenantId.of(command.tenantId());
+    if (!connectorAuthorizationPort.hasPermission(
+        command.actor(), tenantId, ConnectorPermission.EXECUTE_IMPORT)) {
+      throw new ConnectorAccessDeniedException(tenantId, ConnectorPermission.EXECUTE_IMPORT);
+    }
+
     ImportRunReference reference =
         new ImportRunReference(command.tenantId(), command.importRunId());
     ImportRunResult importRun = prepareRun(reference);

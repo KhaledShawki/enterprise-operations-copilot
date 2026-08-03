@@ -40,6 +40,36 @@ class TenantConnectorAuthorizationAdapterTest {
   }
 
   @Test
+  void shouldGrantImportExecutionForTenantAdmin() {
+    RecordingResolveTenantAccessUseCase resolver =
+        new RecordingResolveTenantAccessUseCase(Set.of("tenant-admin"));
+
+    assertTrue(
+        adapter(resolver).hasPermission(ACTOR, TENANT_ID, ConnectorPermission.EXECUTE_IMPORT));
+    assertEquals(List.of("tenant-admin"), resolver.requestedRoles());
+  }
+
+  @Test
+  void shouldGrantImportExecutionForOperationsManagerAfterTenantAdminDenial() {
+    RecordingResolveTenantAccessUseCase resolver =
+        new RecordingResolveTenantAccessUseCase(Set.of("operations-manager"));
+
+    assertTrue(
+        adapter(resolver).hasPermission(ACTOR, TENANT_ID, ConnectorPermission.EXECUTE_IMPORT));
+    assertEquals(List.of("tenant-admin", "operations-manager"), resolver.requestedRoles());
+  }
+
+  @Test
+  void shouldDenyImportExecutionForAuditor() {
+    RecordingResolveTenantAccessUseCase resolver =
+        new RecordingResolveTenantAccessUseCase(Set.of("auditor"));
+
+    assertFalse(
+        adapter(resolver).hasPermission(ACTOR, TENANT_ID, ConnectorPermission.EXECUTE_IMPORT));
+    assertEquals(List.of("tenant-admin", "operations-manager"), resolver.requestedRoles());
+  }
+
+  @Test
   void shouldGrantReadForTenantAdmin() {
     RecordingResolveTenantAccessUseCase resolver =
         new RecordingResolveTenantAccessUseCase(Set.of("tenant-admin"));

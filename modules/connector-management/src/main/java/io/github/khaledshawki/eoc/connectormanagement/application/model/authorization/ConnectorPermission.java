@@ -2,5 +2,6 @@ package io.github.khaledshawki.eoc.connectormanagement.application.model.authori
 
 public enum ConnectorPermission {
   READ,
+  EXECUTE_IMPORT,
   ADMINISTER
 }
