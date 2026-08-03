@@ -1,12 +1,16 @@
 package io.github.khaledshawki.eoc.platform.integration.connectormanagement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.when;
 
+import io.github.khaledshawki.eoc.connectormanagement.application.model.authorization.ConnectorActor;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.authorization.ConnectorPermission;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ExecuteImportRunCommand;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ExecuteImportRunUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunLifecycleUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunResult;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.RequestImportRunCommand;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.Connector;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorEndpoint;
@@ -29,17 +33,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 class ConnectorImportOrchestrationIT {
 
   private static final UUID TENANT_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+  private static final ConnectorActor ACTOR =
+      new ConnectorActor("https://identity.example.com/realms/eoc", "import-operator");
 
   @Autowired private ConnectorRepository connectorRepository;
   @Autowired private ImportRunLifecycleUseCase importRunLifecycle;
   @Autowired private ExecuteImportRunUseCase executeImportRunUseCase;
   @Autowired private JdbcTemplate jdbcTemplate;
+  @MockitoBean private ConnectorAuthorizationPort connectorAuthorizationPort;
 
   @BeforeEach
   void setUp() {
@@ -56,6 +64,9 @@ class ConnectorImportOrchestrationIT {
           connectors
         CASCADE
         """);
+    when(connectorAuthorizationPort.hasPermission(
+            ACTOR, ConnectorTenantId.of(TENANT_ID), ConnectorPermission.EXECUTE_IMPORT))
+        .thenReturn(true);
   }
 
   @Test
@@ -69,7 +80,7 @@ class ConnectorImportOrchestrationIT {
 
     ImportRunResult completed =
         executeImportRunUseCase.execute(
-            new ExecuteImportRunCommand(TENANT_ID, requested.importRunId().value(), 2));
+            new ExecuteImportRunCommand(ACTOR, TENANT_ID, requested.importRunId().value(), 2));
 
     assertEquals(ImportStatus.COMPLETED, completed.status());
     assertEquals(new ImportStatistics(3, 3, 0, 0), completed.statistics());
@@ -93,7 +104,7 @@ class ConnectorImportOrchestrationIT {
 
     ImportRunResult replay =
         executeImportRunUseCase.execute(
-            new ExecuteImportRunCommand(TENANT_ID, requested.importRunId().value(), 2));
+            new ExecuteImportRunCommand(ACTOR, TENANT_ID, requested.importRunId().value(), 2));
     assertEquals(completed, replay);
     assertEquals(
         2L,

@@ -16,8 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class TenantConnectorAuthorizationAdapter implements ConnectorAuthorizationPort {
 
   private static final String TENANT_ADMIN = "tenant-admin";
+  private static final String OPERATIONS_MANAGER = "operations-manager";
   private static final List<String> READ_ROLES =
-      List.of(TENANT_ADMIN, "operations-manager", "auditor");
+      List.of(TENANT_ADMIN, OPERATIONS_MANAGER, "auditor");
+  private static final List<String> IMPORT_EXECUTION_ROLES =
+      List.of(TENANT_ADMIN, OPERATIONS_MANAGER);
 
   private final ResolveTenantAccessUseCase resolveTenantAccessUseCase;
 
@@ -37,6 +40,8 @@ public class TenantConnectorAuthorizationAdapter implements ConnectorAuthorizati
 
     return switch (permission) {
       case ADMINISTER -> hasRole(actor, tenantId, TENANT_ADMIN);
+      case EXECUTE_IMPORT ->
+          IMPORT_EXECUTION_ROLES.stream().anyMatch(role -> hasRole(actor, tenantId, role));
       case READ -> READ_ROLES.stream().anyMatch(role -> hasRole(actor, tenantId, role));
     };
   }

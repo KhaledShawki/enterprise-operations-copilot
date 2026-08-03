@@ -74,12 +74,14 @@ public class ConnectorManagementConfiguration {
   @Bean
   ExecuteImportRunUseCase executeImportRunUseCase(
       ConnectorRepository connectorRepository,
+      ConnectorAuthorizationPort connectorAuthorizationPort,
       ImportRunLifecycleUseCase importRunLifecycleUseCase,
       BusinessDataSourceRegistry businessDataSourceRegistry,
       BusinessPartnerImportPort businessPartnerImportPort,
       Clock clock) {
     return new ExecuteImportRunService(
         connectorRepository,
+        connectorAuthorizationPort,
         importRunLifecycleUseCase,
         businessDataSourceRegistry,
         businessPartnerImportPort,

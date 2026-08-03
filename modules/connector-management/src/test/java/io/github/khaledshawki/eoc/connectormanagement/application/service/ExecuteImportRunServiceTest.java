@@ -3,6 +3,7 @@ package io.github.khaledshawki.eoc.connectormanagement.application.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.khaledshawki.eoc.connectormanagement.application.model.authorization.ConnectorActor;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceConfiguration;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceException;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceFailure;
@@ -55,6 +56,8 @@ class ExecuteImportRunServiceTest {
   private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
   private static final ConnectorTenantId TENANT_ID =
       ConnectorTenantId.of(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+  private static final ConnectorActor ACTOR =
+      new ConnectorActor("https://identity.example.com/realms/eoc", "import-operator");
 
   private InMemoryConnectorRepository connectorRepository;
   private InMemoryImportRunRepository importRunRepository;
@@ -82,7 +85,8 @@ class ExecuteImportRunServiceTest {
 
     ImportRunResult result =
         service.execute(
-            new ExecuteImportRunCommand(TENANT_ID.value(), requested.importRunId().value(), 100));
+            new ExecuteImportRunCommand(
+                ACTOR, TENANT_ID.value(), requested.importRunId().value(), 100));
 
     assertEquals(ImportStatus.RETRY_SCHEDULED, result.status());
     assertEquals(1, result.attemptCount());
@@ -104,7 +108,8 @@ class ExecuteImportRunServiceTest {
 
     ImportRunResult result =
         service.execute(
-            new ExecuteImportRunCommand(TENANT_ID.value(), requested.importRunId().value(), 100));
+            new ExecuteImportRunCommand(
+                ACTOR, TENANT_ID.value(), requested.importRunId().value(), 100));
 
     assertEquals(ImportStatus.FAILED, result.status());
     assertEquals(1, result.attemptCount());
@@ -123,7 +128,8 @@ class ExecuteImportRunServiceTest {
 
     ImportRunResult result =
         service.execute(
-            new ExecuteImportRunCommand(TENANT_ID.value(), requested.importRunId().value(), 100));
+            new ExecuteImportRunCommand(
+                ACTOR, TENANT_ID.value(), requested.importRunId().value(), 100));
 
     assertEquals(ImportStatus.FAILED, result.status());
     assertEquals(ImportFailureCategory.TIMEOUT, result.failure().orElseThrow().category());
@@ -133,6 +139,7 @@ class ExecuteImportRunServiceTest {
   private ExecuteImportRunService service(BusinessDataSource dataSource, int maxAttempts) {
     return new ExecuteImportRunService(
         connectorRepository,
+        (actor, tenantId, permission) -> true,
         importRunLifecycle,
         connectorType -> Optional.of(dataSource),
         page -> {
