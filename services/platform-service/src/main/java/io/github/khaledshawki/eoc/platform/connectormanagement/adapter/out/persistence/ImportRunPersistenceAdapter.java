@@ -3,6 +3,7 @@ package io.github.khaledshawki.eoc.platform.connectormanagement.adapter.out.pers
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ActiveImportRunAlreadyExistsException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConcurrentImportRunModificationException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ImportPageAlreadyAcceptedException;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEvent;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ImportRunRepository;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorId;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorTenantId;
@@ -42,6 +43,8 @@ class ImportRunPersistenceAdapter implements ImportRunRepository {
   private final ImportRunPersistenceMapper importRunPersistenceMapper;
   private final Clock clock;
 
+  private final ConnectorIntegrationEventPayloadSerializer eventPayloadSerializer =
+      new ConnectorIntegrationEventPayloadSerializer();
   private final EntityManager entityManager;
 
   ImportRunPersistenceAdapter(
@@ -70,6 +73,32 @@ class ImportRunPersistenceAdapter implements ImportRunRepository {
     Objects.requireNonNull(importRun, "Import run cannot be null");
     try {
       ImportRunJpaEntity savedEntity = saveAndFlushEntity(importRun, clock.instant());
+      entityManager.refresh(savedEntity);
+      return importRunPersistenceMapper.toDomain(savedEntity);
+    } catch (DataIntegrityViolationException exception) {
+      if (PersistenceConstraintViolationDetector.hasConstraintName(
+          exception, ACTIVE_IMPORT_UNIQUE_INDEX)) {
+        throw new ActiveImportRunAlreadyExistsException(
+            importRun.tenantId(), importRun.connectorId(), importRun.importType(), exception);
+      }
+      throw exception;
+    } catch (ObjectOptimisticLockingFailureException exception) {
+      throw new ConcurrentImportRunModificationException(importRun.id(), exception);
+    }
+  }
+
+  @Override
+  @Transactional
+  public ImportRun saveWithEvent(ImportRun importRun, ConnectorIntegrationEvent event) {
+    Objects.requireNonNull(importRun, "Import run cannot be null");
+    Objects.requireNonNull(event, "Connector integration event cannot be null");
+    ensureEventBelongsToRun(event, importRun);
+    Instant now = clock.instant();
+
+    try {
+      ImportRunJpaEntity savedEntity = saveAndFlushEntity(importRun, now);
+      insertOutboxEvent(event, now);
+      entityManager.flush();
       entityManager.refresh(savedEntity);
       return importRunPersistenceMapper.toDomain(savedEntity);
     } catch (DataIntegrityViolationException exception) {
@@ -163,6 +192,62 @@ class ImportRunPersistenceAdapter implements ImportRunRepository {
             .orElseGet(() -> importRunPersistenceMapper.toEntity(importRun, now));
 
     return importRunRepository.saveAndFlush(entity);
+  }
+
+  private void insertOutboxEvent(ConnectorIntegrationEvent event, Instant now) {
+    entityManager
+        .createNativeQuery(
+            """
+            INSERT INTO connector_outbox_events (
+              event_id,
+              event_type,
+              schema_version,
+              tenant_id,
+              aggregate_type,
+              aggregate_id,
+              payload,
+              occurred_at,
+              publish_status,
+              publish_attempt_count,
+              next_publish_at,
+              created_at,
+              updated_at
+            ) VALUES (
+              :eventId,
+              :eventType,
+              :schemaVersion,
+              :tenantId,
+              :aggregateType,
+              :aggregateId,
+              CAST(:payload AS jsonb),
+              :occurredAt,
+              'PENDING',
+              0,
+              :occurredAt,
+              :now,
+              :now
+            )
+            """)
+        .setParameter("eventId", event.eventId())
+        .setParameter("eventType", event.eventType())
+        .setParameter("schemaVersion", event.schemaVersion())
+        .setParameter("tenantId", event.tenantId())
+        .setParameter("aggregateType", event.aggregateType())
+        .setParameter("aggregateId", event.aggregateId())
+        .setParameter("payload", eventPayloadSerializer.serialize(event.payload()))
+        .setParameter("occurredAt", event.occurredAt())
+        .setParameter("now", now)
+        .executeUpdate();
+  }
+
+  private static void ensureEventBelongsToRun(
+      ConnectorIntegrationEvent event, ImportRun importRun) {
+    if (!event.tenantId().equals(importRun.tenantId().value())
+        || !event.aggregateId().equals(importRun.id().value())
+        || !event.aggregateType().equals("IMPORT_RUN")) {
+      throw new IllegalArgumentException(
+          "Connector integration event does not match the import run");
+    }
   }
 
   private void saveCheckpoint(ImportCheckpoint checkpoint, ImportRunId importRunId, Instant now) {

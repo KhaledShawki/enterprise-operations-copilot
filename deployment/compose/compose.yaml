@@ -134,6 +134,7 @@ services:
       EOC_SECURITY_ISSUER_URI: "http://localhost:8180/realms/eoc"
       EOC_SECURITY_JWK_SET_URI: "http://keycloak:8080/realms/eoc/protocol/openid-connect/certs"
       EOC_SECURITY_AUDIENCE: "platform-api"
+      EOC_CONNECTOR_OUTBOX_RELAY_ENABLED: "true"
 
     ports:
       - "127.0.0.1:${PLATFORM_HTTP_PORT:?PLATFORM_HTTP_PORT is required}:8080"

@@ -11,6 +11,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.in.Suspen
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSourceRegistry;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessPartnerImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorEventIdGenerator;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ImportRunRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.ActivateConnectorService;
@@ -22,6 +23,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.service.ListCo
 import io.github.khaledshawki.eoc.connectormanagement.application.service.SuspendConnectorService;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.UUID;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -67,8 +69,15 @@ public class ConnectorManagementConfiguration {
   ImportRunLifecycleUseCase importRunLifecycleUseCase(
       ConnectorRepository connectorRepository,
       ImportRunRepository importRunRepository,
+      ConnectorEventIdGenerator connectorEventIdGenerator,
       Clock clock) {
-    return new ImportRunLifecycleService(connectorRepository, importRunRepository, clock);
+    return new ImportRunLifecycleService(
+        connectorRepository, importRunRepository, connectorEventIdGenerator, clock);
+  }
+
+  @Bean
+  ConnectorEventIdGenerator connectorEventIdGenerator() {
+    return UUID::randomUUID;
   }
 
   @Bean

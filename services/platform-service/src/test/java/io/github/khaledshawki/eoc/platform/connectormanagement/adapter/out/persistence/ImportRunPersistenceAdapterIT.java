@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ActiveImportRunAlreadyExistsException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConcurrentImportRunModificationException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ImportPageAlreadyAcceptedException;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEvent;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ImportRunIntegrationEventFactory;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ImportRunRepository;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.Connector;
@@ -20,6 +22,8 @@ import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorType
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.CredentialReference;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportCheckpoint;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportCursor;
+import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportFailure;
+import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportFailureCategory;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportMode;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportPageAcceptanceId;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportRun;
@@ -70,6 +74,7 @@ class ImportRunPersistenceAdapterIT {
 
   @BeforeEach
   void setUp() {
+    jdbcTemplate.update("DELETE FROM connector_outbox_events");
     acceptanceRepository.deleteAllInBatch();
     checkpointRepository.deleteAllInBatch();
     springDataImportRunRepository.deleteAllInBatch();
@@ -145,6 +150,70 @@ class ImportRunPersistenceAdapterIT {
     assertTrue(importRunRepository.hasAcceptedPage(saved.id(), acceptanceId));
     assertEquals(1, acceptanceRepository.count());
     assertEquals(1, checkpointRepository.count());
+  }
+
+  @Test
+  void shouldPersistAnImportTransitionAndItsOutboxEventAtomically() {
+    ImportRun running = runningRun();
+    running.recordAcceptedPage(
+        Optional.empty(),
+        Optional.of(new ImportCursor("customer-3")),
+        new ImportStatistics(3, 2, 0, 1));
+    running.complete(NOW);
+    UUID eventId = UUID.fromString("00000000-0000-0000-0000-000000000040");
+    ConnectorIntegrationEvent event =
+        ImportRunIntegrationEventFactory.completed(eventId, running, NOW);
+
+    ImportRun saved = importRunRepository.saveWithEvent(running, event);
+
+    assertEquals(ImportStatus.COMPLETED, saved.status());
+    assertEquals(
+        "connector.import-run.completed.v1",
+        jdbcTemplate.queryForObject(
+            "SELECT event_type FROM connector_outbox_events WHERE event_id = ?",
+            String.class,
+            eventId));
+    assertEquals(
+        "COMPLETED",
+        jdbcTemplate.queryForObject(
+            "SELECT payload ->> 'status' FROM connector_outbox_events WHERE event_id = ?",
+            String.class,
+            eventId));
+    assertEquals(
+        "PENDING",
+        jdbcTemplate.queryForObject(
+            "SELECT publish_status FROM connector_outbox_events WHERE event_id = ?",
+            String.class,
+            eventId));
+  }
+
+  @Test
+  void shouldRollBackTheImportTransitionWhenTheOutboxInsertFails() {
+    UUID eventId = UUID.fromString("00000000-0000-0000-0000-000000000041");
+    ImportRun first = runningRun();
+    first.fail(
+        new ImportFailure(ImportFailureCategory.AUTHENTICATION_FAILED, "authentication-failed"),
+        NOW);
+    importRunRepository.saveWithEvent(
+        first, ImportRunIntegrationEventFactory.failed(eventId, first, NOW));
+
+    ImportRun second = runningRun();
+    second.fail(new ImportFailure(ImportFailureCategory.TIMEOUT, "source-timeout"), NOW);
+
+    assertThrows(
+        RuntimeException.class,
+        () ->
+            importRunRepository.saveWithEvent(
+                second, ImportRunIntegrationEventFactory.failed(eventId, second, NOW)));
+
+    assertEquals(
+        ImportStatus.RUNNING,
+        importRunRepository.findById(TENANT_ID, second.id()).orElseThrow().status());
+    assertEquals(
+        1,
+        jdbcTemplate
+            .queryForObject("SELECT count(*) FROM connector_outbox_events", Integer.class)
+            .intValue());
   }
 
   @Test
@@ -251,9 +320,9 @@ class ImportRunPersistenceAdapterIT {
   void shouldApplyTheImportRunMigration() {
     Integer migrationCount =
         jdbcTemplate.queryForObject(
-            "SELECT count(*) FROM flyway_schema_history WHERE version = '5' AND success",
+            "SELECT count(*) FROM flyway_schema_history WHERE version IN ('5', '7') AND success",
             Integer.class);
-    assertEquals(1, migrationCount.intValue());
+    assertEquals(2, migrationCount.intValue());
   }
 
   private ImportRun runningRun() {
