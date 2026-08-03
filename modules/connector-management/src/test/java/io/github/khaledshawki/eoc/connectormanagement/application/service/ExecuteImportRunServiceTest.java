@@ -13,6 +13,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.model.datasour
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceInvoiceRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePage;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceSchemaVerificationResult;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEvent;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.ImportRetryPolicy;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ExecuteImportRunCommand;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunLifecycleUseCase;
@@ -69,7 +70,11 @@ class ExecuteImportRunServiceTest {
     connectorRepository = new InMemoryConnectorRepository();
     importRunRepository = new InMemoryImportRunRepository();
     importRunLifecycle =
-        new ImportRunLifecycleService(connectorRepository, importRunRepository, CLOCK);
+        new ImportRunLifecycleService(
+            connectorRepository,
+            importRunRepository,
+            () -> UUID.fromString("00000000-0000-0000-0000-000000000050"),
+            CLOCK);
     connector = activeConnector();
     connectorRepository.save(connector);
   }
@@ -244,6 +249,11 @@ class ExecuteImportRunServiceTest {
     public ImportRun save(ImportRun importRun) {
       importRuns.put(importRun.id(), importRun);
       return importRun;
+    }
+
+    @Override
+    public ImportRun saveWithEvent(ImportRun importRun, ConnectorIntegrationEvent event) {
+      return save(importRun);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package io.github.khaledshawki.eoc.connectormanagement.application.port.out;
 
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEvent;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorId;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorTenantId;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportCheckpoint;
@@ -13,6 +14,8 @@ import java.util.Optional;
 public interface ImportRunRepository {
 
   ImportRun save(ImportRun importRun);
+
+  ImportRun saveWithEvent(ImportRun importRun, ConnectorIntegrationEvent event);
 
   Optional<ImportRun> findById(ConnectorTenantId tenantId, ImportRunId importRunId);
 

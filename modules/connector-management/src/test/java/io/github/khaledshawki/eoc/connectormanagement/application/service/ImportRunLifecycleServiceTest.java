@@ -8,6 +8,9 @@ import io.github.khaledshawki.eoc.connectormanagement.application.exception.Acti
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorCannotStartImportException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNotFoundException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ImportRunNotFoundException;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEvent;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEventType;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ImportRunRetryScheduledPayload;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunReference;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunResult;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.RecordAcceptedImportPageCommand;
@@ -59,6 +62,7 @@ class ImportRunLifecycleServiceTest {
   private InMemoryImportRunRepository importRunRepository;
   private ImportRunLifecycleService service;
   private Connector connector;
+  private long eventSequence;
 
   @BeforeEach
   void setUp() {
@@ -66,7 +70,10 @@ class ImportRunLifecycleServiceTest {
     importRunRepository = new InMemoryImportRunRepository();
     service =
         new ImportRunLifecycleService(
-            connectorRepository, importRunRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+            connectorRepository,
+            importRunRepository,
+            () -> new UUID(0L, ++eventSequence),
+            Clock.fixed(NOW, ZoneOffset.UTC));
     connector = activeConnector(TENANT_ID);
     connectorRepository.save(connector);
   }
@@ -215,6 +222,14 @@ class ImportRunLifecycleServiceTest {
     ImportRunResult cancelled = service.requestCancellation(reference);
 
     assertEquals(ImportStatus.RETRY_SCHEDULED, retry.status());
+    assertEquals(1, importRunRepository.events.size());
+    ConnectorIntegrationEvent retryEvent = importRunRepository.events.getFirst();
+    assertEquals(ConnectorIntegrationEventType.IMPORT_RUN_RETRY_SCHEDULED, retryEvent.type());
+    assertEquals(requested.importRunId().value(), retryEvent.aggregateId());
+    ImportRunRetryScheduledPayload retryPayload =
+        (ImportRunRetryScheduledPayload) retryEvent.payload();
+    assertEquals(NOW.plusSeconds(30), retryPayload.nextRetryAt());
+    assertEquals(1, retryPayload.attemptCount());
     assertEquals(ImportStatus.CANCELLED, cancelled.status());
     assertTrue(cancelled.failure().isEmpty());
   }
@@ -296,12 +311,19 @@ class ImportRunLifecycleServiceTest {
 
     private final Map<ImportRunId, ImportRun> runs = new HashMap<>();
     private final Set<String> acceptances = new HashSet<>();
+    private final List<ConnectorIntegrationEvent> events = new java.util.ArrayList<>();
     private Optional<ImportCursor> checkpoint = Optional.empty();
 
     @Override
     public ImportRun save(ImportRun importRun) {
       runs.put(importRun.id(), importRun);
       return importRun;
+    }
+
+    @Override
+    public ImportRun saveWithEvent(ImportRun importRun, ConnectorIntegrationEvent event) {
+      events.add(event);
+      return save(importRun);
     }
 
     @Override

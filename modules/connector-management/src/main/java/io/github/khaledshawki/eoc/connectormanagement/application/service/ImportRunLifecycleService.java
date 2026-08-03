@@ -5,6 +5,8 @@ import io.github.khaledshawki.eoc.connectormanagement.application.exception.Conn
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNotFoundException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ImportPageAlreadyAcceptedException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ImportRunNotFoundException;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEvent;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ImportRunIntegrationEventFactory;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.FailImportRunCommand;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunLifecycleUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunReference;
@@ -12,6 +14,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.in.Import
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.RecordAcceptedImportPageCommand;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.RequestImportRunCommand;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ScheduleImportRetryCommand;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorEventIdGenerator;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ImportRunRepository;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.Connector;
@@ -25,6 +28,7 @@ import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportPageAcc
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportRun;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportRunId;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -32,16 +36,20 @@ public final class ImportRunLifecycleService implements ImportRunLifecycleUseCas
 
   private final ConnectorRepository connectorRepository;
   private final ImportRunRepository importRunRepository;
+  private final ConnectorEventIdGenerator eventIdGenerator;
   private final Clock clock;
 
   public ImportRunLifecycleService(
       ConnectorRepository connectorRepository,
       ImportRunRepository importRunRepository,
+      ConnectorEventIdGenerator eventIdGenerator,
       Clock clock) {
     this.connectorRepository =
         Objects.requireNonNull(connectorRepository, "Connector repository cannot be null");
     this.importRunRepository =
         Objects.requireNonNull(importRunRepository, "Import run repository cannot be null");
+    this.eventIdGenerator =
+        Objects.requireNonNull(eventIdGenerator, "Connector event id generator cannot be null");
     this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
   }
 
@@ -127,23 +135,35 @@ public final class ImportRunLifecycleService implements ImportRunLifecycleUseCas
   public ImportRunResult scheduleRetry(ScheduleImportRetryCommand command) {
     Objects.requireNonNull(command, "Command cannot be null");
     ImportRun importRun = load(new ImportRunReference(command.tenantId(), command.importRunId()));
-    importRun.scheduleRetry(command.failure(), command.nextRetryAt(), clock.instant());
-    return save(importRun);
+    Instant occurredAt = clock.instant();
+    importRun.scheduleRetry(command.failure(), command.nextRetryAt(), occurredAt);
+    return saveWithEvent(
+        importRun,
+        ImportRunIntegrationEventFactory.retryScheduled(
+            eventIdGenerator.generate(), importRun, occurredAt));
   }
 
   @Override
   public ImportRunResult complete(ImportRunReference reference) {
     ImportRun importRun = load(reference);
-    importRun.complete(clock.instant());
-    return save(importRun);
+    Instant occurredAt = clock.instant();
+    importRun.complete(occurredAt);
+    return saveWithEvent(
+        importRun,
+        ImportRunIntegrationEventFactory.completed(
+            eventIdGenerator.generate(), importRun, occurredAt));
   }
 
   @Override
   public ImportRunResult fail(FailImportRunCommand command) {
     Objects.requireNonNull(command, "Command cannot be null");
     ImportRun importRun = load(new ImportRunReference(command.tenantId(), command.importRunId()));
-    importRun.fail(command.failure(), clock.instant());
-    return save(importRun);
+    Instant occurredAt = clock.instant();
+    importRun.fail(command.failure(), occurredAt);
+    return saveWithEvent(
+        importRun,
+        ImportRunIntegrationEventFactory.failed(
+            eventIdGenerator.generate(), importRun, occurredAt));
   }
 
   @Override
@@ -162,6 +182,11 @@ public final class ImportRunLifecycleService implements ImportRunLifecycleUseCas
 
   private ImportRunResult save(ImportRun importRun) {
     return ImportRunResult.from(importRunRepository.save(importRun));
+  }
+
+  private ImportRunResult saveWithEvent(
+      ImportRun importRun, ConnectorIntegrationEvent integrationEvent) {
+    return ImportRunResult.from(importRunRepository.saveWithEvent(importRun, integrationEvent));
   }
 
   private ImportRun load(ImportRunReference reference) {
