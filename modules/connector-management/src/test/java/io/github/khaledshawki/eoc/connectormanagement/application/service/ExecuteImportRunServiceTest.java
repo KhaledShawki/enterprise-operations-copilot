@@ -150,6 +150,9 @@ class ExecuteImportRunServiceTest {
         page -> {
           throw new AssertionError("Downstream import must not run after a source failure");
         },
+        page -> {
+          throw new AssertionError("Invoice import must not run after a customer source failure");
+        },
         new ImportRetryPolicy(maxAttempts, Duration.ofMinutes(1)),
         CLOCK);
   }

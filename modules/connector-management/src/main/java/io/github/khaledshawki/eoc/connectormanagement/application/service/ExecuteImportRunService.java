@@ -9,7 +9,6 @@ import io.github.khaledshawki.eoc.connectormanagement.application.model.datasour
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceException;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceFailure;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.IncrementalCursor;
-import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceCustomerRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceFetchRequest;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePage;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePageToken;
@@ -17,6 +16,8 @@ import io.github.khaledshawki.eoc.connectormanagement.application.model.importin
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.BusinessPartnerImportPage;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.DownstreamImportException;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.ImportRetryPolicy;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.InvoiceImportOutcome;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.InvoiceImportPage;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ExecuteImportRunCommand;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ExecuteImportRunUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.FailImportRunCommand;
@@ -30,6 +31,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.out.Busin
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessPartnerImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.InvoiceImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.Connector;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorId;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorStatus;
@@ -38,10 +40,10 @@ import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportFailure
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportFailureCategory;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportStatistics;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportStatus;
-import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportType;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -53,8 +55,6 @@ import java.util.UUID;
  */
 public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
 
-  private static final ImportFailure UNSUPPORTED_IMPORT_TYPE =
-      new ImportFailure(ImportFailureCategory.SOURCE_CONTRACT_VIOLATION, "unsupported-import-type");
   private static final ImportFailure MISSING_DATA_SOURCE =
       new ImportFailure(
           ImportFailureCategory.SOURCE_CONTRACT_VIOLATION, "business-data-source-not-registered");
@@ -64,6 +64,7 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
   private final ImportRunLifecycleUseCase importRunLifecycle;
   private final BusinessDataSourceRegistry dataSourceRegistry;
   private final BusinessPartnerImportPort businessPartnerImportPort;
+  private final InvoiceImportPort invoiceImportPort;
   private final ImportRetryPolicy retryPolicy;
   private final Clock clock;
 
@@ -73,6 +74,7 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
       ImportRunLifecycleUseCase importRunLifecycle,
       BusinessDataSourceRegistry dataSourceRegistry,
       BusinessPartnerImportPort businessPartnerImportPort,
+      InvoiceImportPort invoiceImportPort,
       ImportRetryPolicy retryPolicy,
       Clock clock) {
     this.connectorRepository =
@@ -87,6 +89,8 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
     this.businessPartnerImportPort =
         Objects.requireNonNull(
             businessPartnerImportPort, "Business partner import port cannot be null");
+    this.invoiceImportPort =
+        Objects.requireNonNull(invoiceImportPort, "Invoice import port cannot be null");
     this.retryPolicy = Objects.requireNonNull(retryPolicy, "Import retry policy cannot be null");
     this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
   }
@@ -107,11 +111,6 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
     if (importRun.status().terminal()) {
       return importRun;
     }
-    if (importRun.importType() != ImportType.CUSTOMERS) {
-      return importRunLifecycle.fail(
-          new FailImportRunCommand(
-              command.tenantId(), command.importRunId(), UNSUPPORTED_IMPORT_TYPE));
-    }
 
     Connector connector = loadActiveConnector(importRun);
     Optional<BusinessDataSource> resolvedDataSource =
@@ -123,29 +122,88 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
 
     BusinessDataSource dataSource = resolvedDataSource.orElseThrow();
     BusinessDataSourceConfiguration configuration = BusinessDataSourceConfiguration.from(connector);
+    return switch (importRun.importType()) {
+      case CUSTOMERS ->
+          executeCustomerPages(command, reference, importRun, dataSource, configuration);
+      case INVOICES ->
+          executeInvoicePages(command, reference, importRun, dataSource, configuration);
+    };
+  }
+
+  private ImportRunResult executeCustomerPages(
+      ExecuteImportRunCommand command,
+      ImportRunReference reference,
+      ImportRunResult importRun,
+      BusinessDataSource dataSource,
+      BusinessDataSourceConfiguration configuration) {
+    return executePages(
+        command,
+        reference,
+        importRun,
+        configuration,
+        dataSource::retrieveCustomers,
+        (acceptanceId, records) -> {
+          BusinessPartnerImportOutcome outcome =
+              businessPartnerImportPort.importPage(
+                  new BusinessPartnerImportPage(
+                      command.tenantId(),
+                      importRun.connectorId().value(),
+                      command.importRunId(),
+                      acceptanceId,
+                      records));
+          return AcceptedPageOutcome.from(outcome);
+        });
+  }
+
+  private ImportRunResult executeInvoicePages(
+      ExecuteImportRunCommand command,
+      ImportRunReference reference,
+      ImportRunResult importRun,
+      BusinessDataSource dataSource,
+      BusinessDataSourceConfiguration configuration) {
+    return executePages(
+        command,
+        reference,
+        importRun,
+        configuration,
+        dataSource::retrieveInvoices,
+        (acceptanceId, records) -> {
+          InvoiceImportOutcome outcome =
+              invoiceImportPort.importPage(
+                  new InvoiceImportPage(
+                      command.tenantId(),
+                      importRun.connectorId().value(),
+                      command.importRunId(),
+                      acceptanceId,
+                      records));
+          return AcceptedPageOutcome.from(outcome);
+        });
+  }
+
+  private <T> ImportRunResult executePages(
+      ExecuteImportRunCommand command,
+      ImportRunReference reference,
+      ImportRunResult initialRun,
+      BusinessDataSourceConfiguration configuration,
+      SourcePageRetriever<T> pageRetriever,
+      DownstreamPageImporter<T> pageImporter) {
+    ImportRunResult importRun = initialRun;
     Optional<SourcePageToken> pageToken = Optional.empty();
 
     while (true) {
-      SourcePage<SourceCustomerRecord> sourcePage;
+      SourcePage<T> sourcePage;
       try {
         sourcePage =
-            dataSource.retrieveCustomers(
+            pageRetriever.retrieve(
                 configuration, fetchRequest(command.pageSize(), pageToken, importRun));
       } catch (BusinessDataSourceException exception) {
         return transitionAfterFailure(importRun, mapSourceFailure(exception.failure()));
       }
 
       UUID acceptanceId = acceptanceId(importRun);
-      BusinessPartnerImportOutcome outcome;
+      AcceptedPageOutcome outcome;
       try {
-        outcome =
-            businessPartnerImportPort.importPage(
-                new BusinessPartnerImportPage(
-                    command.tenantId(),
-                    importRun.connectorId().value(),
-                    command.importRunId(),
-                    acceptanceId,
-                    sourcePage.records()));
+        outcome = pageImporter.importPage(acceptanceId, sourcePage.records());
       } catch (DownstreamImportException exception) {
         return transitionAfterFailure(importRun, exception.failure());
       }
@@ -256,5 +314,53 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
           case UNEXPECTED_SOURCE_FAILURE -> ImportFailureCategory.UNEXPECTED_FAILURE;
         };
     return new ImportFailure(category, failure.diagnosticCode());
+  }
+
+  @FunctionalInterface
+  private interface SourcePageRetriever<T> {
+
+    SourcePage<T> retrieve(
+        BusinessDataSourceConfiguration configuration, SourceFetchRequest fetchRequest);
+  }
+
+  @FunctionalInterface
+  private interface DownstreamPageImporter<T> {
+
+    AcceptedPageOutcome importPage(UUID acceptanceId, List<T> records);
+  }
+
+  private record AcceptedPageOutcome(
+      UUID pageAcceptanceId, long fetched, long accepted, long rejected, long duplicates) {
+
+    private AcceptedPageOutcome {
+      Objects.requireNonNull(pageAcceptanceId, "Page acceptance id cannot be null");
+      if (fetched < 0 || accepted < 0 || rejected < 0 || duplicates < 0) {
+        throw new IllegalArgumentException("Accepted page counts cannot be negative");
+      }
+      if (fetched != Math.addExact(Math.addExact(accepted, rejected), duplicates)) {
+        throw new IllegalArgumentException(
+            "Fetched records must equal accepted, rejected, and duplicate records");
+      }
+    }
+
+    static AcceptedPageOutcome from(BusinessPartnerImportOutcome outcome) {
+      Objects.requireNonNull(outcome, "Business partner import outcome cannot be null");
+      return new AcceptedPageOutcome(
+          outcome.pageAcceptanceId(),
+          outcome.fetched(),
+          outcome.accepted(),
+          outcome.rejected(),
+          outcome.duplicates());
+    }
+
+    static AcceptedPageOutcome from(InvoiceImportOutcome outcome) {
+      Objects.requireNonNull(outcome, "Invoice import outcome cannot be null");
+      return new AcceptedPageOutcome(
+          outcome.pageAcceptanceId(),
+          outcome.fetched(),
+          outcome.accepted(),
+          outcome.rejected(),
+          outcome.duplicates());
+    }
   }
 }

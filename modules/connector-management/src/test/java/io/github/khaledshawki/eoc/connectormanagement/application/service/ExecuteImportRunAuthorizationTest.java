@@ -72,6 +72,9 @@ class ExecuteImportRunAuthorizationTest {
                 page -> {
                   throw new AssertionError("Downstream import must not be called");
                 },
+                page -> {
+                  throw new AssertionError("Invoice downstream import must not be called");
+                },
                 new ImportRetryPolicy(3, Duration.ofMinutes(1)),
                 Clock.systemUTC()));
   }
@@ -87,6 +90,9 @@ class ExecuteImportRunAuthorizationTest {
         },
         page -> {
           throw new AssertionError("Downstream import must not be called after denial");
+        },
+        page -> {
+          throw new AssertionError("Invoice downstream import must not be called after denial");
         },
         new ImportRetryPolicy(3, Duration.ofMinutes(1)),
         Clock.systemUTC());

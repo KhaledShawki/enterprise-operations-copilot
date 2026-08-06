@@ -14,6 +14,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.out.Conne
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorEventIdGenerator;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ImportRunRepository;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.InvoiceImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.ActivateConnectorService;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.CreateConnectorService;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.ExecuteImportRunService;
@@ -87,6 +88,7 @@ public class ConnectorManagementConfiguration {
       ImportRunLifecycleUseCase importRunLifecycleUseCase,
       BusinessDataSourceRegistry businessDataSourceRegistry,
       BusinessPartnerImportPort businessPartnerImportPort,
+      InvoiceImportPort invoiceImportPort,
       Clock clock) {
     return new ExecuteImportRunService(
         connectorRepository,
@@ -94,6 +96,7 @@ public class ConnectorManagementConfiguration {
         importRunLifecycleUseCase,
         businessDataSourceRegistry,
         businessPartnerImportPort,
+        invoiceImportPort,
         new ImportRetryPolicy(3, Duration.ofMinutes(1)),
         clock);
   }
