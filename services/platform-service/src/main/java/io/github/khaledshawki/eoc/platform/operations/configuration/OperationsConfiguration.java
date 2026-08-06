@@ -2,10 +2,16 @@ package io.github.khaledshawki.eoc.platform.operations.configuration;
 
 import io.github.khaledshawki.eoc.operations.application.port.in.BusinessPartnerImportResult;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportBusinessPartnersUseCase;
+import io.github.khaledshawki.eoc.operations.application.port.in.ImportInvoicesUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerImportReceiptRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerSourceMappingRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceImportReceiptRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceImportUnitOfWork;
+import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceSourceMappingRepository;
 import io.github.khaledshawki.eoc.operations.application.service.ImportBusinessPartnersService;
+import io.github.khaledshawki.eoc.operations.application.service.ImportInvoicesService;
 import java.time.Clock;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -32,5 +38,24 @@ public class OperationsConfiguration {
           transactionTemplate.execute(status -> delegate.importPage(command));
       return Objects.requireNonNull(result, "Business partner import transaction returned null");
     };
+  }
+
+  @Bean
+  ImportInvoicesUseCase importInvoicesUseCase(
+      InvoiceRepository invoiceRepository,
+      InvoiceSourceMappingRepository sourceMappingRepository,
+      InvoiceImportReceiptRepository importReceiptRepository,
+      BusinessPartnerRepository businessPartnerRepository,
+      BusinessPartnerSourceMappingRepository businessPartnerSourceMappingRepository,
+      InvoiceImportUnitOfWork unitOfWork,
+      Clock clock) {
+    return new ImportInvoicesService(
+        invoiceRepository,
+        sourceMappingRepository,
+        importReceiptRepository,
+        businessPartnerRepository,
+        businessPartnerSourceMappingRepository,
+        unitOfWork,
+        clock);
   }
 }
