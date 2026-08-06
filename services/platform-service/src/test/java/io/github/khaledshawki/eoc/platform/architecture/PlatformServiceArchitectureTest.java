@@ -10,6 +10,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSource;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessPartnerImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.InvoiceImportPort;
 import jakarta.persistence.Entity;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.repository.Repository;
@@ -161,6 +162,17 @@ class PlatformServiceArchitectureTest {
         .should()
         .resideInAPackage(CONNECTOR_OPERATIONS_INTEGRATION_PACKAGE)
         .because("cross-context translation must remain in its explicit composition adapter")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorInvoiceTranslationImplementsTheConnectorOwnedImportPort() {
+    classes()
+        .that()
+        .implement(InvoiceImportPort.class)
+        .should()
+        .resideInAPackage(CONNECTOR_OPERATIONS_INTEGRATION_PACKAGE)
+        .because("Invoice translation must remain in its explicit composition adapter")
         .check(PLATFORM_CLASSES);
   }
 
