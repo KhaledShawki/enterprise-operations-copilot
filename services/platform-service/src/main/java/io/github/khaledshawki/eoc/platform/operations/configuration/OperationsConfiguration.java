@@ -1,17 +1,23 @@
 package io.github.khaledshawki.eoc.platform.operations.configuration;
 
 import io.github.khaledshawki.eoc.operations.application.port.in.BusinessPartnerImportResult;
+import io.github.khaledshawki.eoc.operations.application.port.in.GetInvoiceUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportBusinessPartnersUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportInvoicesUseCase;
+import io.github.khaledshawki.eoc.operations.application.port.in.ListInvoicesUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerImportReceiptRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerSourceMappingRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceImportReceiptRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceImportUnitOfWork;
+import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceQueryRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceSourceMappingRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.OperationsAuthorizationPort;
+import io.github.khaledshawki.eoc.operations.application.service.GetInvoiceService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportBusinessPartnersService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportInvoicesService;
+import io.github.khaledshawki.eoc.operations.application.service.ListInvoicesService;
 import java.time.Clock;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -57,5 +63,19 @@ public class OperationsConfiguration {
         businessPartnerSourceMappingRepository,
         unitOfWork,
         clock);
+  }
+
+  @Bean
+  GetInvoiceUseCase getInvoiceUseCase(
+      InvoiceRepository invoiceRepository,
+      OperationsAuthorizationPort operationsAuthorizationPort) {
+    return new GetInvoiceService(invoiceRepository, operationsAuthorizationPort);
+  }
+
+  @Bean
+  ListInvoicesUseCase listInvoicesUseCase(
+      InvoiceQueryRepository invoiceQueryRepository,
+      OperationsAuthorizationPort operationsAuthorizationPort) {
+    return new ListInvoicesService(invoiceQueryRepository, operationsAuthorizationPort);
   }
 }
