@@ -17,6 +17,8 @@ public class TenantOperationsAuthorizationAdapter implements OperationsAuthoriza
 
   private static final List<String> READ_OPERATIONS_ROLES =
       List.of("tenant-admin", "operations-manager", "auditor");
+  private static final List<String> MANAGE_RECEIVABLE_SETTLEMENT_ROLES =
+      List.of("tenant-admin", "operations-manager");
 
   private final ResolveTenantAccessUseCase resolveTenantAccessUseCase;
 
@@ -36,6 +38,9 @@ public class TenantOperationsAuthorizationAdapter implements OperationsAuthoriza
     return switch (permission) {
       case READ_INVOICES, READ_PAYMENTS ->
           READ_OPERATIONS_ROLES.stream().anyMatch(role -> hasRole(actor, tenantId, role));
+      case MANAGE_RECEIVABLE_SETTLEMENTS ->
+          MANAGE_RECEIVABLE_SETTLEMENT_ROLES.stream()
+              .anyMatch(role -> hasRole(actor, tenantId, role));
     };
   }
 
