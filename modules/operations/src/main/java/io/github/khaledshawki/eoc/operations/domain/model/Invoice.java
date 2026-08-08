@@ -3,6 +3,12 @@ package io.github.khaledshawki.eoc.operations.domain.model;
 import java.time.LocalDate;
 import java.util.Objects;
 
+/**
+ * Canonical imported customer-invoice snapshot.
+ *
+ * <p>{@code paidAmount} is authoritative settlement evidence from the Invoice source snapshot.
+ * Local receivable allocations are modeled separately and must never mutate this source-owned fact.
+ */
 public final class Invoice {
 
   private final InvoiceId id;
