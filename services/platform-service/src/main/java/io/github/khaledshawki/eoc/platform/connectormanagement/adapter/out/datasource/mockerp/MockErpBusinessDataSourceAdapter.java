@@ -6,6 +6,7 @@ import static io.github.khaledshawki.eoc.connectormanagement.application.model.d
 import static io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceFailure.Category.SOURCE_UNAVAILABLE;
 import static io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceEntity.CUSTOMER;
 import static io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceEntity.INVOICE;
+import static io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceEntity.PAYMENT;
 
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceConfiguration;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.BusinessDataSourceException;
@@ -18,6 +19,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.model.datasour
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceInvoiceRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePage;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePageToken;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePaymentRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceSchemaIssue;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceSchemaVerificationResult;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSource;
@@ -98,6 +100,14 @@ final class MockErpBusinessDataSourceAdapter implements BusinessDataSource {
     requireSupportedConfiguration(configuration);
     requireRetrievalAvailable();
     return retrievePage(INVOICE, fixture.invoices(), fetchRequest);
+  }
+
+  @Override
+  public SourcePage<SourcePaymentRecord> retrievePayments(
+      BusinessDataSourceConfiguration configuration, SourceFetchRequest fetchRequest) {
+    requireSupportedConfiguration(configuration);
+    requireRetrievalAvailable();
+    return retrievePage(PAYMENT, fixture.payments(), fetchRequest);
   }
 
   private void requireSourceAvailable() {

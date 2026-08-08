@@ -12,6 +12,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.model.datasour
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceFetchRequest;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceInvoiceRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePage;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePaymentRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceSchemaVerificationResult;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEvent;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.ImportRetryPolicy;
@@ -153,6 +154,9 @@ class ExecuteImportRunServiceTest {
         page -> {
           throw new AssertionError("Invoice import must not run after a customer source failure");
         },
+        page -> {
+          throw new AssertionError("Payment import must not run after a customer source failure");
+        },
         new ImportRetryPolicy(maxAttempts, Duration.ofMinutes(1)),
         CLOCK);
   }
@@ -194,6 +198,12 @@ class ExecuteImportRunServiceTest {
       public SourcePage<SourceInvoiceRecord> retrieveInvoices(
           BusinessDataSourceConfiguration configuration, SourceFetchRequest fetchRequest) {
         throw new AssertionError("Invoice retrieval must not run for a customer import");
+      }
+
+      @Override
+      public SourcePage<SourcePaymentRecord> retrievePayments(
+          BusinessDataSourceConfiguration configuration, SourceFetchRequest fetchRequest) {
+        throw new AssertionError("Payment retrieval must not run for a customer import");
       }
     };
   }

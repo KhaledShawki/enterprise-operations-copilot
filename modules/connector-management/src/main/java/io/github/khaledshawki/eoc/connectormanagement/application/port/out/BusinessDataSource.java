@@ -6,6 +6,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.model.datasour
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceFetchRequest;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceInvoiceRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePage;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePaymentRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceSchemaVerificationResult;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorType;
 
@@ -36,5 +37,9 @@ public interface BusinessDataSource {
 
   /** Retrieves one normalized invoice page from an initial, incremental, or continuation scan. */
   SourcePage<SourceInvoiceRecord> retrieveInvoices(
+      BusinessDataSourceConfiguration configuration, SourceFetchRequest fetchRequest);
+
+  /** Retrieves one normalized payment page from an initial, incremental, or continuation scan. */
+  SourcePage<SourcePaymentRecord> retrievePayments(
       BusinessDataSourceConfiguration configuration, SourceFetchRequest fetchRequest);
 }
