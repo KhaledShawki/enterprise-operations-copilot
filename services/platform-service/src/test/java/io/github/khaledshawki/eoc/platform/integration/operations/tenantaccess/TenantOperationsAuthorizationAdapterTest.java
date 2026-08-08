@@ -20,12 +20,7 @@ class TenantOperationsAuthorizationAdapterTest {
   @Test
   void shouldGrantOperationsReadsToEveryApprovedTenantRole() {
     for (String role : Set.of("tenant-admin", "operations-manager", "auditor")) {
-      TenantOperationsAuthorizationAdapter adapter =
-          new TenantOperationsAuthorizationAdapter(
-              query ->
-                  query.requiredRole().equals(role)
-                      ? ResolveTenantAccessResult.allow()
-                      : ResolveTenantAccessResult.deny());
+      TenantOperationsAuthorizationAdapter adapter = adapterGranting(role);
 
       assertTrue(adapter.hasPermission(ACTOR, TENANT_ID, OperationsPermission.READ_INVOICES));
       assertTrue(adapter.hasPermission(ACTOR, TENANT_ID, OperationsPermission.READ_PAYMENTS));
@@ -33,11 +28,34 @@ class TenantOperationsAuthorizationAdapterTest {
   }
 
   @Test
-  void shouldDenyOperationsReadsWhenNoApprovedRoleIsGranted() {
+  void shouldGrantReceivableSettlementManagementOnlyToApprovedWriteRoles() {
+    for (String role : Set.of("tenant-admin", "operations-manager")) {
+      assertTrue(
+          adapterGranting(role)
+              .hasPermission(ACTOR, TENANT_ID, OperationsPermission.MANAGE_RECEIVABLE_SETTLEMENTS));
+    }
+    assertFalse(
+        adapterGranting("auditor")
+            .hasPermission(ACTOR, TENANT_ID, OperationsPermission.MANAGE_RECEIVABLE_SETTLEMENTS));
+  }
+
+  @Test
+  void shouldDenyOperationsPermissionsWhenNoApprovedRoleIsGranted() {
     TenantOperationsAuthorizationAdapter adapter =
         new TenantOperationsAuthorizationAdapter(query -> ResolveTenantAccessResult.deny());
 
     assertFalse(adapter.hasPermission(ACTOR, TENANT_ID, OperationsPermission.READ_INVOICES));
     assertFalse(adapter.hasPermission(ACTOR, TENANT_ID, OperationsPermission.READ_PAYMENTS));
+    assertFalse(
+        adapter.hasPermission(
+            ACTOR, TENANT_ID, OperationsPermission.MANAGE_RECEIVABLE_SETTLEMENTS));
+  }
+
+  private static TenantOperationsAuthorizationAdapter adapterGranting(String grantedRole) {
+    return new TenantOperationsAuthorizationAdapter(
+        query ->
+            query.requiredRole().equals(grantedRole)
+                ? ResolveTenantAccessResult.allow()
+                : ResolveTenantAccessResult.deny());
   }
 }
