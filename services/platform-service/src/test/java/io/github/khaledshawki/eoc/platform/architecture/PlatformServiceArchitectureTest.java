@@ -11,6 +11,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.out.Busin
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessPartnerImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.InvoiceImportPort;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.PaymentImportPort;
 import jakarta.persistence.Entity;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.repository.Repository;
@@ -173,6 +174,17 @@ class PlatformServiceArchitectureTest {
         .should()
         .resideInAPackage(CONNECTOR_OPERATIONS_INTEGRATION_PACKAGE)
         .because("Invoice translation must remain in its explicit composition adapter")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void connectorPaymentTranslationImplementsTheConnectorOwnedImportPort() {
+    classes()
+        .that()
+        .implement(PaymentImportPort.class)
+        .should()
+        .resideInAPackage(CONNECTOR_OPERATIONS_INTEGRATION_PACKAGE)
+        .because("Payment translation must remain in its explicit composition adapter")
         .check(PLATFORM_CLASSES);
   }
 

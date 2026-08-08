@@ -12,6 +12,7 @@ public record SourceEntity(String value) {
 
   public static final SourceEntity CUSTOMER = new SourceEntity("customer");
   public static final SourceEntity INVOICE = new SourceEntity("invoice");
+  public static final SourceEntity PAYMENT = new SourceEntity("payment");
 
   public SourceEntity {
     value =

@@ -22,8 +22,8 @@ import io.github.khaledshawki.eoc.connectormanagement.application.model.datasour
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEvent;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.DownstreamImportException;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.ImportRetryPolicy;
-import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.InvoiceImportOutcome;
-import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.InvoiceImportPage;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.PaymentImportOutcome;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.PaymentImportPage;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ExecuteImportRunCommand;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunLifecycleUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunResult;
@@ -31,7 +31,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.in.Reques
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSource;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ImportRunRepository;
-import io.github.khaledshawki.eoc.connectormanagement.application.port.out.InvoiceImportPort;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.PaymentImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.Connector;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorEndpoint;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorId;
@@ -68,14 +68,14 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class ExecuteInvoiceImportRunServiceTest {
+class ExecutePaymentImportRunServiceTest {
 
-  private static final Instant NOW = Instant.parse("2026-08-06T08:00:00Z");
+  private static final Instant NOW = Instant.parse("2026-08-08T08:00:00Z");
   private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
   private static final ConnectorTenantId TENANT_ID =
       ConnectorTenantId.of(UUID.fromString("00000000-0000-0000-0000-000000000001"));
   private static final ConnectorActor ACTOR =
-      new ConnectorActor("https://identity.example.com/realms/eoc", "invoice-import-operator");
+      new ConnectorActor("https://identity.example.com/realms/eoc", "payment-import-operator");
 
   private InMemoryConnectorRepository connectorRepository;
   private InMemoryImportRunRepository importRunRepository;
@@ -97,11 +97,11 @@ class ExecuteInvoiceImportRunServiceTest {
   }
 
   @Test
-  void shouldRetrieveAcceptAndCompleteInvoicePages() {
-    ImportRunResult requested = requestInvoiceRun();
-    RecordingInvoiceDataSource dataSource = new RecordingInvoiceDataSource();
-    RecordingInvoiceImportPort invoiceImportPort = new RecordingInvoiceImportPort();
-    ExecuteImportRunService service = service(dataSource, invoiceImportPort, 3);
+  void shouldRetrieveAcceptAndCompletePaymentPages() {
+    ImportRunResult requested = requestPaymentRun();
+    RecordingPaymentDataSource dataSource = new RecordingPaymentDataSource();
+    RecordingPaymentImportPort paymentImportPort = new RecordingPaymentImportPort();
+    ExecuteImportRunService service = service(dataSource, paymentImportPort, 3);
 
     ImportRunResult result =
         service.execute(
@@ -118,26 +118,26 @@ class ExecuteInvoiceImportRunServiceTest {
     assertTrue(dataSource.requests.getFirst().pageToken().isEmpty());
     assertEquals(
         Optional.of(new SourcePageToken("page-2")), dataSource.requests.get(1).pageToken());
-    assertEquals(2, invoiceImportPort.pages.size());
-    assertEquals(invoiceImportPort.pages.getFirst().sourceSystemId(), connector.id().value());
-    assertEquals(requested.importRunId().value(), invoiceImportPort.pages.getFirst().importRunId());
+    assertEquals(2, paymentImportPort.pages.size());
+    assertEquals(paymentImportPort.pages.getFirst().sourceSystemId(), connector.id().value());
+    assertEquals(requested.importRunId().value(), paymentImportPort.pages.getFirst().importRunId());
     assertTrue(
-        !invoiceImportPort
+        !paymentImportPort
             .pages
             .getFirst()
             .pageAcceptanceId()
-            .equals(invoiceImportPort.pages.get(1).pageAcceptanceId()));
+            .equals(paymentImportPort.pages.get(1).pageAcceptanceId()));
   }
 
   @Test
-  void shouldFailPermanentlyForAnInvalidDownstreamInvoicePage() {
-    ImportRunResult requested = requestInvoiceRun();
+  void shouldFailPermanentlyForAnInvalidDownstreamPaymentPage() {
+    ImportRunResult requested = requestPaymentRun();
     ImportFailure failure =
         new ImportFailure(
-            ImportFailureCategory.SOURCE_CONTRACT_VIOLATION, "invalid-invoice-record");
+            ImportFailureCategory.SOURCE_CONTRACT_VIOLATION, "invalid-payment-record");
     ExecuteImportRunService service =
         service(
-            new SingleInvoicePageDataSource(),
+            new SinglePaymentPageDataSource(),
             page -> {
               throw new DownstreamImportException(failure, new IllegalArgumentException("bad"));
             },
@@ -155,14 +155,14 @@ class ExecuteInvoiceImportRunServiceTest {
   }
 
   @Test
-  void shouldScheduleRetryForARetryableInvoicePersistenceFailure() {
-    ImportRunResult requested = requestInvoiceRun();
+  void shouldScheduleRetryForARetryablePaymentPersistenceFailure() {
+    ImportRunResult requested = requestPaymentRun();
     ImportFailure failure =
         new ImportFailure(
             ImportFailureCategory.DOWNSTREAM_UNAVAILABLE, "operations-temporarily-unavailable");
     ExecuteImportRunService service =
         service(
-            new SingleInvoicePageDataSource(),
+            new SinglePaymentPageDataSource(),
             page -> {
               throw new DownstreamImportException(failure, new IllegalStateException("retry"));
             },
@@ -181,11 +181,11 @@ class ExecuteInvoiceImportRunServiceTest {
 
   @Test
   void shouldRejectADifferentDownstreamAcceptanceIdWithoutRecordingProgress() {
-    ImportRunResult requested = requestInvoiceRun();
+    ImportRunResult requested = requestPaymentRun();
     ExecuteImportRunService service =
         service(
-            new SingleInvoicePageDataSource(),
-            page -> new InvoiceImportOutcome(UUID.randomUUID(), page.records().size(), 1, 0, 0),
+            new SinglePaymentPageDataSource(),
+            page -> new PaymentImportOutcome(UUID.randomUUID(), page.records().size(), 1, 0, 0),
             3);
 
     assertThrows(
@@ -205,46 +205,43 @@ class ExecuteInvoiceImportRunServiceTest {
   }
 
   private ExecuteImportRunService service(
-      BusinessDataSource dataSource, InvoiceImportPort invoiceImportPort, int maxAttempts) {
+      BusinessDataSource dataSource, PaymentImportPort paymentImportPort, int maxAttempts) {
     return new ExecuteImportRunService(
         connectorRepository,
         (actor, tenantId, permission) -> true,
         importRunLifecycle,
         connectorType -> Optional.of(dataSource),
         page -> {
-          throw new AssertionError("Customer import must not run for an Invoice import");
+          throw new AssertionError("Customer import must not run for a Payment import");
         },
-        invoiceImportPort,
         page -> {
-          throw new AssertionError("Payment import must not run for an Invoice import");
+          throw new AssertionError("Invoice import must not run for a Payment import");
         },
+        paymentImportPort,
         new ImportRetryPolicy(maxAttempts, Duration.ofMinutes(1)),
         CLOCK);
   }
 
-  private ImportRunResult requestInvoiceRun() {
+  private ImportRunResult requestPaymentRun() {
     return importRunLifecycle.request(
         new RequestImportRunCommand(
             TENANT_ID.value(),
             connector.id().value(),
-            ImportType.INVOICES,
+            ImportType.PAYMENTS,
             ImportMode.INCREMENTAL));
   }
 
-  private static SourceInvoiceRecord invoice(String sourceId, String invoiceNumber) {
-    return new SourceInvoiceRecord(
+  private static SourcePaymentRecord payment(String sourceId, String amount, boolean reversed) {
+    return new SourcePaymentRecord(
         new SourceRecordMetadata(
-            SourceIdentity.sourceRecordId(SourceEntity.INVOICE, sourceId),
+            SourceIdentity.sourceRecordId(SourceEntity.PAYMENT, sourceId),
             new SourceModificationVersion(sourceId + "-v1"),
             Optional.of(NOW)),
         SourceIdentity.sourceRecordId(SourceEntity.CUSTOMER, "customer-1"),
-        invoiceNumber,
         LocalDate.of(2026, 8, 1),
-        LocalDate.of(2026, 8, 31),
         Currency.getInstance("EUR"),
-        new BigDecimal("100.00"),
-        new BigDecimal("40.00"),
-        "PARTIALLY_PAID");
+        new BigDecimal(amount),
+        reversed);
   }
 
   private static Connector activeConnector() {
@@ -260,7 +257,7 @@ class ExecuteInvoiceImportRunServiceTest {
     return connector;
   }
 
-  private static class SingleInvoicePageDataSource implements BusinessDataSource {
+  private static class SinglePaymentPageDataSource implements BusinessDataSource {
 
     @Override
     public ConnectorType supportedConnectorType() {
@@ -281,58 +278,58 @@ class ExecuteInvoiceImportRunServiceTest {
     @Override
     public SourcePage<SourceCustomerRecord> retrieveCustomers(
         BusinessDataSourceConfiguration configuration, SourceFetchRequest fetchRequest) {
-      throw new AssertionError("Customer retrieval must not run for an Invoice import");
+      throw new AssertionError("Customer retrieval must not run for a Payment import");
     }
 
     @Override
     public SourcePage<SourceInvoiceRecord> retrieveInvoices(
         BusinessDataSourceConfiguration configuration, SourceFetchRequest fetchRequest) {
-      return new SourcePage<>(
-          List.of(invoice("invoice-1", "INV-1")),
-          Optional.empty(),
-          Optional.of(new IncrementalCursor("cursor-1")));
+      throw new AssertionError("Invoice retrieval must not run for a Payment import");
     }
 
     @Override
     public SourcePage<SourcePaymentRecord> retrievePayments(
         BusinessDataSourceConfiguration configuration, SourceFetchRequest fetchRequest) {
-      throw new AssertionError("Payment retrieval must not run for an Invoice import");
+      return new SourcePage<>(
+          List.of(payment("payment-1", "100.00", false)),
+          Optional.empty(),
+          Optional.of(new IncrementalCursor("cursor-1")));
     }
   }
 
-  private static final class RecordingInvoiceDataSource extends SingleInvoicePageDataSource {
+  private static final class RecordingPaymentDataSource extends SinglePaymentPageDataSource {
 
     private final List<SourceFetchRequest> requests = new ArrayList<>();
 
     @Override
-    public SourcePage<SourceInvoiceRecord> retrieveInvoices(
+    public SourcePage<SourcePaymentRecord> retrievePayments(
         BusinessDataSourceConfiguration configuration, SourceFetchRequest fetchRequest) {
       requests.add(fetchRequest);
       if (fetchRequest.pageToken().isEmpty()) {
         return new SourcePage<>(
-            List.of(invoice("invoice-1", "INV-1")),
+            List.of(payment("payment-1", "100.00", false)),
             Optional.of(new SourcePageToken("page-2")),
             Optional.of(new IncrementalCursor("cursor-1")));
       }
       assertEquals(Optional.of(new SourcePageToken("page-2")), fetchRequest.pageToken());
       return new SourcePage<>(
-          List.of(invoice("invoice-2", "INV-2")),
+          List.of(payment("payment-2", "50.00", true)),
           Optional.empty(),
           Optional.of(new IncrementalCursor("cursor-2")));
     }
   }
 
-  private static final class RecordingInvoiceImportPort implements InvoiceImportPort {
+  private static final class RecordingPaymentImportPort implements PaymentImportPort {
 
-    private final List<InvoiceImportPage> pages = new ArrayList<>();
+    private final List<PaymentImportPage> pages = new ArrayList<>();
 
     @Override
-    public InvoiceImportOutcome importPage(InvoiceImportPage page) {
+    public PaymentImportOutcome importPage(PaymentImportPage page) {
       pages.add(page);
       if (pages.size() == 1) {
-        return new InvoiceImportOutcome(page.pageAcceptanceId(), 1, 1, 0, 0);
+        return new PaymentImportOutcome(page.pageAcceptanceId(), 1, 1, 0, 0);
       }
-      return new InvoiceImportOutcome(page.pageAcceptanceId(), 1, 0, 0, 1);
+      return new PaymentImportOutcome(page.pageAcceptanceId(), 1, 0, 0, 1);
     }
   }
 

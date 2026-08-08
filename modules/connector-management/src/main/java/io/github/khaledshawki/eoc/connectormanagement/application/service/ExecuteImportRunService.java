@@ -18,6 +18,8 @@ import io.github.khaledshawki.eoc.connectormanagement.application.model.importin
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.ImportRetryPolicy;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.InvoiceImportOutcome;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.InvoiceImportPage;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.PaymentImportOutcome;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.PaymentImportPage;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ExecuteImportRunCommand;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ExecuteImportRunUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.FailImportRunCommand;
@@ -32,6 +34,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.out.Busin
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.InvoiceImportPort;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.PaymentImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.Connector;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorId;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorStatus;
@@ -65,6 +68,7 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
   private final BusinessDataSourceRegistry dataSourceRegistry;
   private final BusinessPartnerImportPort businessPartnerImportPort;
   private final InvoiceImportPort invoiceImportPort;
+  private final PaymentImportPort paymentImportPort;
   private final ImportRetryPolicy retryPolicy;
   private final Clock clock;
 
@@ -75,6 +79,7 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
       BusinessDataSourceRegistry dataSourceRegistry,
       BusinessPartnerImportPort businessPartnerImportPort,
       InvoiceImportPort invoiceImportPort,
+      PaymentImportPort paymentImportPort,
       ImportRetryPolicy retryPolicy,
       Clock clock) {
     this.connectorRepository =
@@ -91,6 +96,8 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
             businessPartnerImportPort, "Business partner import port cannot be null");
     this.invoiceImportPort =
         Objects.requireNonNull(invoiceImportPort, "Invoice import port cannot be null");
+    this.paymentImportPort =
+        Objects.requireNonNull(paymentImportPort, "Payment import port cannot be null");
     this.retryPolicy = Objects.requireNonNull(retryPolicy, "Import retry policy cannot be null");
     this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
   }
@@ -127,6 +134,8 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
           executeCustomerPages(command, reference, importRun, dataSource, configuration);
       case INVOICES ->
           executeInvoicePages(command, reference, importRun, dataSource, configuration);
+      case PAYMENTS ->
+          executePaymentPages(command, reference, importRun, dataSource, configuration);
     };
   }
 
@@ -171,6 +180,31 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
           InvoiceImportOutcome outcome =
               invoiceImportPort.importPage(
                   new InvoiceImportPage(
+                      command.tenantId(),
+                      importRun.connectorId().value(),
+                      command.importRunId(),
+                      acceptanceId,
+                      records));
+          return AcceptedPageOutcome.from(outcome);
+        });
+  }
+
+  private ImportRunResult executePaymentPages(
+      ExecuteImportRunCommand command,
+      ImportRunReference reference,
+      ImportRunResult importRun,
+      BusinessDataSource dataSource,
+      BusinessDataSourceConfiguration configuration) {
+    return executePages(
+        command,
+        reference,
+        importRun,
+        configuration,
+        dataSource::retrievePayments,
+        (acceptanceId, records) -> {
+          PaymentImportOutcome outcome =
+              paymentImportPort.importPage(
+                  new PaymentImportPage(
                       command.tenantId(),
                       importRun.connectorId().value(),
                       command.importRunId(),
@@ -355,6 +389,16 @@ public final class ExecuteImportRunService implements ExecuteImportRunUseCase {
 
     static AcceptedPageOutcome from(InvoiceImportOutcome outcome) {
       Objects.requireNonNull(outcome, "Invoice import outcome cannot be null");
+      return new AcceptedPageOutcome(
+          outcome.pageAcceptanceId(),
+          outcome.fetched(),
+          outcome.accepted(),
+          outcome.rejected(),
+          outcome.duplicates());
+    }
+
+    static AcceptedPageOutcome from(PaymentImportOutcome outcome) {
+      Objects.requireNonNull(outcome, "Payment import outcome cannot be null");
       return new AcceptedPageOutcome(
           outcome.pageAcceptanceId(),
           outcome.fetched(),

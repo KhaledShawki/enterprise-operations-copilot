@@ -2,12 +2,14 @@ package io.github.khaledshawki.eoc.platform.connectormanagement.adapter.out.data
 
 import static io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceEntity.CUSTOMER;
 import static io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceEntity.INVOICE;
+import static io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceEntity.PAYMENT;
 
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceCustomerRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceEntity;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceIdentity;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceInvoiceRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceModificationVersion;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourcePaymentRecord;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.datasource.SourceRecordMetadata;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -21,12 +23,15 @@ final class MockErpFixture {
 
   private final List<FixtureRecord<SourceCustomerRecord>> customers;
   private final List<FixtureRecord<SourceInvoiceRecord>> invoices;
+  private final List<FixtureRecord<SourcePaymentRecord>> payments;
 
   private MockErpFixture(
       List<FixtureRecord<SourceCustomerRecord>> customers,
-      List<FixtureRecord<SourceInvoiceRecord>> invoices) {
+      List<FixtureRecord<SourceInvoiceRecord>> invoices,
+      List<FixtureRecord<SourcePaymentRecord>> payments) {
     this.customers = List.copyOf(customers);
     this.invoices = List.copyOf(invoices);
+    this.payments = List.copyOf(payments);
   }
 
   static MockErpFixture standard() {
@@ -92,7 +97,35 @@ final class MockErpFixture {
                 LocalDate.of(2026, 3, 4),
                 "875.50",
                 "275.50",
-                "PARTIALLY_PAID")));
+                "PARTIALLY_PAID")),
+        List.of(
+            payment(
+                1,
+                "payment-1000",
+                "payment-1000-v1",
+                "2026-01-18T09:00:00Z",
+                "customer-1000",
+                LocalDate.of(2026, 1, 18),
+                "400.00",
+                false),
+            payment(
+                2,
+                "payment-2000",
+                "payment-2000-v1",
+                "2026-02-10T17:00:00Z",
+                "customer-2000",
+                LocalDate.of(2026, 2, 10),
+                "600.00",
+                false),
+            payment(
+                3,
+                "payment-2001",
+                "payment-2001-v2",
+                "2026-02-12T10:00:00Z",
+                "customer-2000",
+                LocalDate.of(2026, 2, 11),
+                "125.00",
+                true)));
   }
 
   List<FixtureRecord<SourceCustomerRecord>> customers() {
@@ -101,6 +134,10 @@ final class MockErpFixture {
 
   List<FixtureRecord<SourceInvoiceRecord>> invoices() {
     return invoices;
+  }
+
+  List<FixtureRecord<SourcePaymentRecord>> payments() {
+    return payments;
   }
 
   private static FixtureRecord<SourceCustomerRecord> customer(
@@ -144,6 +181,26 @@ final class MockErpFixture {
             new BigDecimal(totalAmount),
             new BigDecimal(openAmount),
             sourceStatus));
+  }
+
+  private static FixtureRecord<SourcePaymentRecord> payment(
+      long sequence,
+      String sourceId,
+      String sourceVersion,
+      String sourceModifiedAt,
+      String customerSourceId,
+      LocalDate paymentDate,
+      String amount,
+      boolean reversed) {
+    return new FixtureRecord<>(
+        sequence,
+        new SourcePaymentRecord(
+            metadata(PAYMENT, sourceId, sourceVersion, sourceModifiedAt),
+            SourceIdentity.sourceRecordId(CUSTOMER, customerSourceId),
+            paymentDate,
+            Currency.getInstance("USD"),
+            new BigDecimal(amount),
+            reversed));
   }
 
   private static SourceRecordMetadata metadata(
