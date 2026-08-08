@@ -25,4 +25,14 @@ public class OperationsPersistenceConfiguration {
   InvoiceSourceMappingPersistenceMapper invoiceSourceMappingPersistenceMapper() {
     return new InvoiceSourceMappingPersistenceMapper();
   }
+
+  @Bean
+  PaymentPersistenceMapper paymentPersistenceMapper() {
+    return new PaymentPersistenceMapper();
+  }
+
+  @Bean
+  PaymentSourceMappingPersistenceMapper paymentSourceMappingPersistenceMapper() {
+    return new PaymentSourceMappingPersistenceMapper();
+  }
 }

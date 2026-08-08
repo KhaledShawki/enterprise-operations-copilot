@@ -4,6 +4,7 @@ import io.github.khaledshawki.eoc.operations.application.port.in.BusinessPartner
 import io.github.khaledshawki.eoc.operations.application.port.in.GetInvoiceUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportBusinessPartnersUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportInvoicesUseCase;
+import io.github.khaledshawki.eoc.operations.application.port.in.ImportPaymentsUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ListInvoicesUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerImportReceiptRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerRepository;
@@ -14,9 +15,14 @@ import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceQueryRe
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceSourceMappingRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.OperationsAuthorizationPort;
+import io.github.khaledshawki.eoc.operations.application.port.out.PaymentImportReceiptRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.PaymentImportUnitOfWork;
+import io.github.khaledshawki.eoc.operations.application.port.out.PaymentRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.PaymentSourceMappingRepository;
 import io.github.khaledshawki.eoc.operations.application.service.GetInvoiceService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportBusinessPartnersService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportInvoicesService;
+import io.github.khaledshawki.eoc.operations.application.service.ImportPaymentsService;
 import io.github.khaledshawki.eoc.operations.application.service.ListInvoicesService;
 import java.time.Clock;
 import java.util.Objects;
@@ -57,6 +63,25 @@ public class OperationsConfiguration {
       Clock clock) {
     return new ImportInvoicesService(
         invoiceRepository,
+        sourceMappingRepository,
+        importReceiptRepository,
+        businessPartnerRepository,
+        businessPartnerSourceMappingRepository,
+        unitOfWork,
+        clock);
+  }
+
+  @Bean
+  ImportPaymentsUseCase importPaymentsUseCase(
+      PaymentRepository paymentRepository,
+      PaymentSourceMappingRepository sourceMappingRepository,
+      PaymentImportReceiptRepository importReceiptRepository,
+      BusinessPartnerRepository businessPartnerRepository,
+      BusinessPartnerSourceMappingRepository businessPartnerSourceMappingRepository,
+      PaymentImportUnitOfWork unitOfWork,
+      Clock clock) {
+    return new ImportPaymentsService(
+        paymentRepository,
         sourceMappingRepository,
         importReceiptRepository,
         businessPartnerRepository,
