@@ -59,6 +59,9 @@ class InvoiceQueryPersistenceIT {
   @Autowired private SpringDataInvoiceRepository springDataInvoiceRepository;
   @Autowired private SpringDataInvoiceSourceMappingRepository springDataInvoiceMappingRepository;
   @Autowired private SpringDataInvoiceImportReceiptRepository springDataInvoiceReceiptRepository;
+  @Autowired private SpringDataPaymentRepository springDataPaymentRepository;
+  @Autowired private SpringDataPaymentSourceMappingRepository springDataPaymentMappingRepository;
+  @Autowired private SpringDataPaymentImportReceiptRepository springDataPaymentReceiptRepository;
   @Autowired private SpringDataBusinessPartnerRepository springDataBusinessPartnerRepository;
 
   @Autowired
@@ -71,6 +74,9 @@ class InvoiceQueryPersistenceIT {
 
   @BeforeEach
   void setUp() {
+    springDataPaymentReceiptRepository.deleteAllInBatch();
+    springDataPaymentMappingRepository.deleteAllInBatch();
+    springDataPaymentRepository.deleteAllInBatch();
     springDataInvoiceReceiptRepository.deleteAllInBatch();
     springDataInvoiceMappingRepository.deleteAllInBatch();
     springDataInvoiceRepository.deleteAllInBatch();

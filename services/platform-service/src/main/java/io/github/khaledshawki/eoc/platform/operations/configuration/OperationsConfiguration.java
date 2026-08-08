@@ -2,10 +2,12 @@ package io.github.khaledshawki.eoc.platform.operations.configuration;
 
 import io.github.khaledshawki.eoc.operations.application.port.in.BusinessPartnerImportResult;
 import io.github.khaledshawki.eoc.operations.application.port.in.GetInvoiceUseCase;
+import io.github.khaledshawki.eoc.operations.application.port.in.GetPaymentUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportBusinessPartnersUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportInvoicesUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportPaymentsUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ListInvoicesUseCase;
+import io.github.khaledshawki.eoc.operations.application.port.in.ListPaymentsUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerImportReceiptRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerSourceMappingRepository;
@@ -17,13 +19,16 @@ import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceSourceM
 import io.github.khaledshawki.eoc.operations.application.port.out.OperationsAuthorizationPort;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentImportReceiptRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentImportUnitOfWork;
+import io.github.khaledshawki.eoc.operations.application.port.out.PaymentQueryRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentSourceMappingRepository;
 import io.github.khaledshawki.eoc.operations.application.service.GetInvoiceService;
+import io.github.khaledshawki.eoc.operations.application.service.GetPaymentService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportBusinessPartnersService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportInvoicesService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportPaymentsService;
 import io.github.khaledshawki.eoc.operations.application.service.ListInvoicesService;
+import io.github.khaledshawki.eoc.operations.application.service.ListPaymentsService;
 import java.time.Clock;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -102,5 +107,19 @@ public class OperationsConfiguration {
       InvoiceQueryRepository invoiceQueryRepository,
       OperationsAuthorizationPort operationsAuthorizationPort) {
     return new ListInvoicesService(invoiceQueryRepository, operationsAuthorizationPort);
+  }
+
+  @Bean
+  GetPaymentUseCase getPaymentUseCase(
+      PaymentRepository paymentRepository,
+      OperationsAuthorizationPort operationsAuthorizationPort) {
+    return new GetPaymentService(paymentRepository, operationsAuthorizationPort);
+  }
+
+  @Bean
+  ListPaymentsUseCase listPaymentsUseCase(
+      PaymentQueryRepository paymentQueryRepository,
+      OperationsAuthorizationPort operationsAuthorizationPort) {
+    return new ListPaymentsService(paymentQueryRepository, operationsAuthorizationPort);
   }
 }

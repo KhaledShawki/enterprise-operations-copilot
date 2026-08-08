@@ -18,7 +18,7 @@ class TenantOperationsAuthorizationAdapterTest {
       OperationsTenantId.of(UUID.fromString("00000000-0000-0000-0000-000000000001"));
 
   @Test
-  void shouldGrantReadInvoicesToEveryApprovedTenantRole() {
+  void shouldGrantOperationsReadsToEveryApprovedTenantRole() {
     for (String role : Set.of("tenant-admin", "operations-manager", "auditor")) {
       TenantOperationsAuthorizationAdapter adapter =
           new TenantOperationsAuthorizationAdapter(
@@ -28,14 +28,16 @@ class TenantOperationsAuthorizationAdapterTest {
                       : ResolveTenantAccessResult.deny());
 
       assertTrue(adapter.hasPermission(ACTOR, TENANT_ID, OperationsPermission.READ_INVOICES));
+      assertTrue(adapter.hasPermission(ACTOR, TENANT_ID, OperationsPermission.READ_PAYMENTS));
     }
   }
 
   @Test
-  void shouldDenyReadInvoicesWhenNoApprovedRoleIsGranted() {
+  void shouldDenyOperationsReadsWhenNoApprovedRoleIsGranted() {
     TenantOperationsAuthorizationAdapter adapter =
         new TenantOperationsAuthorizationAdapter(query -> ResolveTenantAccessResult.deny());
 
     assertFalse(adapter.hasPermission(ACTOR, TENANT_ID, OperationsPermission.READ_INVOICES));
+    assertFalse(adapter.hasPermission(ACTOR, TENANT_ID, OperationsPermission.READ_PAYMENTS));
   }
 }

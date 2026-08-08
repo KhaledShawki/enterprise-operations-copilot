@@ -103,4 +103,16 @@ class OperationsReadArchitectureTest {
         .implement(JavaClass.Predicates.resideInAPackage(OPERATIONS_OUTPUT_PORT_PACKAGE))
         .check(PLATFORM_CLASSES);
   }
+
+  @Test
+  void paymentQueryPersistenceImplementsAnOperationsOutputPort() {
+    classes()
+        .that()
+        .resideInAPackage(OPERATIONS_PERSISTENCE_PACKAGE)
+        .and()
+        .haveSimpleName("PaymentQueryPersistenceAdapter")
+        .should()
+        .implement(JavaClass.Predicates.resideInAPackage(OPERATIONS_OUTPUT_PORT_PACKAGE))
+        .check(PLATFORM_CLASSES);
+  }
 }
