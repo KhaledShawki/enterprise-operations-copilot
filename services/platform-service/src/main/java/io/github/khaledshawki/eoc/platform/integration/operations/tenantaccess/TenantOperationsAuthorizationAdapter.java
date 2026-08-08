@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class TenantOperationsAuthorizationAdapter implements OperationsAuthorizationPort {
 
-  private static final List<String> READ_INVOICE_ROLES =
+  private static final List<String> READ_OPERATIONS_ROLES =
       List.of("tenant-admin", "operations-manager", "auditor");
 
   private final ResolveTenantAccessUseCase resolveTenantAccessUseCase;
@@ -34,8 +34,8 @@ public class TenantOperationsAuthorizationAdapter implements OperationsAuthoriza
     Objects.requireNonNull(tenantId, "Operations tenant id cannot be null");
     Objects.requireNonNull(permission, "Operations permission cannot be null");
     return switch (permission) {
-      case READ_INVOICES ->
-          READ_INVOICE_ROLES.stream().anyMatch(role -> hasRole(actor, tenantId, role));
+      case READ_INVOICES, READ_PAYMENTS ->
+          READ_OPERATIONS_ROLES.stream().anyMatch(role -> hasRole(actor, tenantId, role));
     };
   }
 
