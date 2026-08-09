@@ -3,6 +3,7 @@ package io.github.khaledshawki.eoc.platform.operations.configuration;
 import io.github.khaledshawki.eoc.operations.application.port.in.BusinessPartnerImportResult;
 import io.github.khaledshawki.eoc.operations.application.port.in.GetInvoiceUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.GetPaymentUseCase;
+import io.github.khaledshawki.eoc.operations.application.port.in.GetReceivableSettlementUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportBusinessPartnersUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportInvoicesUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportPaymentsUseCase;
@@ -26,6 +27,7 @@ import io.github.khaledshawki.eoc.operations.application.port.out.ReceivableSett
 import io.github.khaledshawki.eoc.operations.application.port.out.ReceivableSettlementRepository;
 import io.github.khaledshawki.eoc.operations.application.service.GetInvoiceService;
 import io.github.khaledshawki.eoc.operations.application.service.GetPaymentService;
+import io.github.khaledshawki.eoc.operations.application.service.GetReceivableSettlementService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportBusinessPartnersService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportInvoicesService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportPaymentsService;
@@ -111,6 +113,15 @@ public class OperationsConfiguration {
         settlementRepository,
         unitOfWork,
         operationsAuthorizationPort);
+  }
+
+  @Bean
+  GetReceivableSettlementUseCase getReceivableSettlementUseCase(
+      PaymentRepository paymentRepository,
+      ReceivableSettlementRepository settlementRepository,
+      OperationsAuthorizationPort operationsAuthorizationPort) {
+    return new GetReceivableSettlementService(
+        paymentRepository, settlementRepository, operationsAuthorizationPort);
   }
 
   @Bean
