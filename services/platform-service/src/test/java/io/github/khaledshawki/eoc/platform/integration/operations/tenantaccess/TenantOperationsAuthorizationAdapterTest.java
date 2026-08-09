@@ -27,6 +27,9 @@ class TenantOperationsAuthorizationAdapterTest {
       assertTrue(
           adapter.hasPermission(
               ACTOR, TENANT_ID, OperationsPermission.READ_RECEIVABLE_SETTLEMENTS));
+      assertTrue(
+          adapter.hasPermission(
+              ACTOR, TENANT_ID, OperationsPermission.READ_RECEIVABLE_RECONCILIATIONS));
     }
   }
 
@@ -51,6 +54,9 @@ class TenantOperationsAuthorizationAdapterTest {
     assertFalse(adapter.hasPermission(ACTOR, TENANT_ID, OperationsPermission.READ_PAYMENTS));
     assertFalse(
         adapter.hasPermission(ACTOR, TENANT_ID, OperationsPermission.READ_RECEIVABLE_SETTLEMENTS));
+    assertFalse(
+        adapter.hasPermission(
+            ACTOR, TENANT_ID, OperationsPermission.READ_RECEIVABLE_RECONCILIATIONS));
     assertFalse(
         adapter.hasPermission(
             ACTOR, TENANT_ID, OperationsPermission.MANAGE_RECEIVABLE_SETTLEMENTS));
