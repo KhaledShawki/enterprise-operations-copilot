@@ -3,6 +3,7 @@ package io.github.khaledshawki.eoc.platform.operations.configuration;
 import io.github.khaledshawki.eoc.operations.application.port.in.BusinessPartnerImportResult;
 import io.github.khaledshawki.eoc.operations.application.port.in.GetInvoiceUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.GetPaymentUseCase;
+import io.github.khaledshawki.eoc.operations.application.port.in.GetReceivableReconciliationUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.GetReceivableSettlementUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportBusinessPartnersUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportInvoicesUseCase;
@@ -23,10 +24,12 @@ import io.github.khaledshawki.eoc.operations.application.port.out.PaymentImportU
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentQueryRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentSourceMappingRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.ReceivableReconciliationEvidenceRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.ReceivableSettlementMutationUnitOfWork;
 import io.github.khaledshawki.eoc.operations.application.port.out.ReceivableSettlementRepository;
 import io.github.khaledshawki.eoc.operations.application.service.GetInvoiceService;
 import io.github.khaledshawki.eoc.operations.application.service.GetPaymentService;
+import io.github.khaledshawki.eoc.operations.application.service.GetReceivableReconciliationService;
 import io.github.khaledshawki.eoc.operations.application.service.GetReceivableSettlementService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportBusinessPartnersService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportInvoicesService;
@@ -39,6 +42,7 @@ import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration(proxyBeanMethods = false)
@@ -122,6 +126,24 @@ public class OperationsConfiguration {
       OperationsAuthorizationPort operationsAuthorizationPort) {
     return new GetReceivableSettlementService(
         paymentRepository, settlementRepository, operationsAuthorizationPort);
+  }
+
+  @Bean
+  GetReceivableReconciliationUseCase getReceivableReconciliationUseCase(
+      InvoiceRepository invoiceRepository,
+      ReceivableReconciliationEvidenceRepository evidenceRepository,
+      OperationsAuthorizationPort operationsAuthorizationPort,
+      PlatformTransactionManager transactionManager) {
+    GetReceivableReconciliationUseCase delegate =
+        new GetReceivableReconciliationService(
+            invoiceRepository, evidenceRepository, operationsAuthorizationPort);
+    TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+    transactionTemplate.setReadOnly(true);
+    transactionTemplate.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+    return query ->
+        Objects.requireNonNull(
+            transactionTemplate.execute(status -> delegate.get(query)),
+            "Receivable reconciliation read transaction returned null");
   }
 
   @Bean

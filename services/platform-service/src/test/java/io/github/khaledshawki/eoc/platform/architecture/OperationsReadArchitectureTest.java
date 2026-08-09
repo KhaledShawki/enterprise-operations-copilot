@@ -115,4 +115,16 @@ class OperationsReadArchitectureTest {
         .implement(JavaClass.Predicates.resideInAPackage(OPERATIONS_OUTPUT_PORT_PACKAGE))
         .check(PLATFORM_CLASSES);
   }
+
+  @Test
+  void receivableReconciliationEvidencePersistenceImplementsAnOperationsOutputPort() {
+    classes()
+        .that()
+        .resideInAPackage(OPERATIONS_PERSISTENCE_PACKAGE)
+        .and()
+        .haveSimpleName("ReceivableReconciliationEvidencePersistenceAdapter")
+        .should()
+        .implement(JavaClass.Predicates.resideInAPackage(OPERATIONS_OUTPUT_PORT_PACKAGE))
+        .check(PLATFORM_CLASSES);
+  }
 }

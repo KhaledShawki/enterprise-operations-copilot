@@ -36,7 +36,10 @@ public class TenantOperationsAuthorizationAdapter implements OperationsAuthoriza
     Objects.requireNonNull(tenantId, "Operations tenant id cannot be null");
     Objects.requireNonNull(permission, "Operations permission cannot be null");
     return switch (permission) {
-      case READ_INVOICES, READ_PAYMENTS, READ_RECEIVABLE_SETTLEMENTS ->
+      case READ_INVOICES,
+          READ_PAYMENTS,
+          READ_RECEIVABLE_SETTLEMENTS,
+          READ_RECEIVABLE_RECONCILIATIONS ->
           READ_OPERATIONS_ROLES.stream().anyMatch(role -> hasRole(actor, tenantId, role));
       case MANAGE_RECEIVABLE_SETTLEMENTS ->
           MANAGE_RECEIVABLE_SETTLEMENT_ROLES.stream()
