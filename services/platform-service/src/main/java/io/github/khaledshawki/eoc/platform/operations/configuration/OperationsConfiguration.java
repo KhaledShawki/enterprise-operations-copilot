@@ -22,6 +22,8 @@ import io.github.khaledshawki.eoc.operations.application.port.out.PaymentImportU
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentQueryRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentSourceMappingRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.ReceivableSettlementMutationUnitOfWork;
+import io.github.khaledshawki.eoc.operations.application.port.out.ReceivableSettlementRepository;
 import io.github.khaledshawki.eoc.operations.application.service.GetInvoiceService;
 import io.github.khaledshawki.eoc.operations.application.service.GetPaymentService;
 import io.github.khaledshawki.eoc.operations.application.service.ImportBusinessPartnersService;
@@ -29,6 +31,7 @@ import io.github.khaledshawki.eoc.operations.application.service.ImportInvoicesS
 import io.github.khaledshawki.eoc.operations.application.service.ImportPaymentsService;
 import io.github.khaledshawki.eoc.operations.application.service.ListInvoicesService;
 import io.github.khaledshawki.eoc.operations.application.service.ListPaymentsService;
+import io.github.khaledshawki.eoc.operations.application.service.ReceivableSettlementService;
 import java.time.Clock;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
@@ -93,6 +96,21 @@ public class OperationsConfiguration {
         businessPartnerSourceMappingRepository,
         unitOfWork,
         clock);
+  }
+
+  @Bean
+  ReceivableSettlementService receivableSettlementService(
+      PaymentRepository paymentRepository,
+      InvoiceRepository invoiceRepository,
+      ReceivableSettlementRepository settlementRepository,
+      ReceivableSettlementMutationUnitOfWork unitOfWork,
+      OperationsAuthorizationPort operationsAuthorizationPort) {
+    return new ReceivableSettlementService(
+        paymentRepository,
+        invoiceRepository,
+        settlementRepository,
+        unitOfWork,
+        operationsAuthorizationPort);
   }
 
   @Bean
