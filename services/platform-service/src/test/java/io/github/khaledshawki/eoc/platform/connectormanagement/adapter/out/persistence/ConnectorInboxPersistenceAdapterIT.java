@@ -5,10 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorEventPublicationException;
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorEventConsumptionException;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEventEnvelope;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEventType;
-import io.github.khaledshawki.eoc.connectormanagement.application.model.outbox.ClaimedConnectorOutboxEvent;
-import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventPublisher;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventInbox;
 import io.github.khaledshawki.eoc.platform.TestcontainersConfiguration;
 import java.time.Clock;
 import java.time.Instant;
@@ -39,7 +39,7 @@ class ConnectorInboxPersistenceAdapterIT {
   private static final String TRIGGER_NAME = "reject_connector_projection_for_test";
   private static final String FUNCTION_NAME = "reject_connector_projection_for_test";
 
-  @Autowired private ConnectorIntegrationEventPublisher eventPublisher;
+  @Autowired private ConnectorIntegrationEventInbox eventInbox;
   @Autowired private JdbcTemplate jdbcTemplate;
 
   @BeforeEach
@@ -56,10 +56,10 @@ class ConnectorInboxPersistenceAdapterIT {
 
   @Test
   void shouldPersistTheInboxReceiptAndProjectionExactlyOnce() {
-    ClaimedConnectorOutboxEvent event = completedEvent(EVENT_ID, completedPayload(2));
+    ConnectorIntegrationEventEnvelope event = completedEvent(EVENT_ID, completedPayload(2));
 
-    eventPublisher.publish(event);
-    eventPublisher.publish(event);
+    eventInbox.consume(event);
+    eventInbox.consume(event);
 
     assertEquals(1, count("connector_inbox_events"));
     assertEquals(1, count("connector_import_run_event_projection"));
@@ -79,12 +79,12 @@ class ConnectorInboxPersistenceAdapterIT {
 
   @Test
   void shouldRejectEventIdReuseWithDifferentContent() {
-    eventPublisher.publish(completedEvent(EVENT_ID, completedPayload(2)));
+    eventInbox.consume(completedEvent(EVENT_ID, completedPayload(2)));
 
-    ConnectorEventPublicationException exception =
+    ConnectorEventConsumptionException exception =
         assertThrows(
-            ConnectorEventPublicationException.class,
-            () -> eventPublisher.publish(completedEvent(EVENT_ID, completedPayload(3))));
+            ConnectorEventConsumptionException.class,
+            () -> eventInbox.consume(completedEvent(EVENT_ID, completedPayload(3))));
 
     assertEquals("connector-event-id-collision", exception.failureCode());
     assertFalse(exception.retryable());
@@ -94,8 +94,8 @@ class ConnectorInboxPersistenceAdapterIT {
 
   @Test
   void shouldRejectUnsupportedContractsBeforeWritingAnInboxReceipt() {
-    ClaimedConnectorOutboxEvent unsupported =
-        new ClaimedConnectorOutboxEvent(
+    ConnectorIntegrationEventEnvelope unsupported =
+        new ConnectorIntegrationEventEnvelope(
             EVENT_ID,
             "connector.import-run.completed.v2",
             2,
@@ -103,14 +103,11 @@ class ConnectorInboxPersistenceAdapterIT {
             "IMPORT_RUN",
             IMPORT_RUN_ID,
             completedPayload(2),
-            NOW.minusSeconds(30),
-            1,
-            "worker-a",
-            NOW.minusSeconds(1));
+            NOW.minusSeconds(30));
 
-    ConnectorEventPublicationException exception =
+    ConnectorEventConsumptionException exception =
         assertThrows(
-            ConnectorEventPublicationException.class, () -> eventPublisher.publish(unsupported));
+            ConnectorEventConsumptionException.class, () -> eventInbox.consume(unsupported));
 
     assertEquals("unsupported-connector-event-contract", exception.failureCode());
     assertFalse(exception.retryable());
@@ -135,10 +132,10 @@ class ConnectorInboxPersistenceAdapterIT {
         }
         """;
 
-    ConnectorEventPublicationException exception =
+    ConnectorEventConsumptionException exception =
         assertThrows(
-            ConnectorEventPublicationException.class,
-            () -> eventPublisher.publish(completedEvent(EVENT_ID, malformedPayload)));
+            ConnectorEventConsumptionException.class,
+            () -> eventInbox.consume(completedEvent(EVENT_ID, malformedPayload)));
 
     assertEquals("invalid-connector-event-payload", exception.failureCode());
     assertFalse(exception.retryable());
@@ -163,8 +160,8 @@ class ConnectorInboxPersistenceAdapterIT {
           "nextRetryAt": "2026-08-03T17:59:30Z"
         }
         """;
-    ClaimedConnectorOutboxEvent event =
-        new ClaimedConnectorOutboxEvent(
+    ConnectorIntegrationEventEnvelope event =
+        new ConnectorIntegrationEventEnvelope(
             EVENT_ID,
             ConnectorIntegrationEventType.IMPORT_RUN_RETRY_SCHEDULED.eventType(),
             ConnectorIntegrationEventType.IMPORT_RUN_RETRY_SCHEDULED.schemaVersion(),
@@ -172,13 +169,10 @@ class ConnectorInboxPersistenceAdapterIT {
             ConnectorIntegrationEventType.IMPORT_RUN_RETRY_SCHEDULED.aggregateType(),
             IMPORT_RUN_ID,
             invalidRetryPayload,
-            occurredAt,
-            1,
-            "worker-a",
-            NOW.minusSeconds(1));
+            occurredAt);
 
-    ConnectorEventPublicationException exception =
-        assertThrows(ConnectorEventPublicationException.class, () -> eventPublisher.publish(event));
+    ConnectorEventConsumptionException exception =
+        assertThrows(ConnectorEventConsumptionException.class, () -> eventInbox.consume(event));
 
     assertEquals("invalid-connector-event-payload", exception.failureCode());
     assertFalse(exception.retryable());
@@ -190,10 +184,10 @@ class ConnectorInboxPersistenceAdapterIT {
   void shouldRollBackTheInboxReceiptWhenProjectionHandlingFails() {
     createFailureTrigger(EVENT_ID);
 
-    ConnectorEventPublicationException exception =
+    ConnectorEventConsumptionException exception =
         assertThrows(
-            ConnectorEventPublicationException.class,
-            () -> eventPublisher.publish(completedEvent(EVENT_ID, completedPayload(2))));
+            ConnectorEventConsumptionException.class,
+            () -> eventInbox.consume(completedEvent(EVENT_ID, completedPayload(2))));
 
     assertEquals("connector-inbox-unavailable", exception.failureCode());
     assertTrue(exception.retryable());
@@ -201,7 +195,7 @@ class ConnectorInboxPersistenceAdapterIT {
     assertEquals(0, count("connector_import_run_event_projection"));
 
     dropFailureTrigger();
-    eventPublisher.publish(completedEvent(EVENT_ID, completedPayload(2)));
+    eventInbox.consume(completedEvent(EVENT_ID, completedPayload(2)));
     assertEquals(1, count("connector_inbox_events"));
     assertEquals(1, count("connector_import_run_event_projection"));
   }
@@ -241,8 +235,8 @@ class ConnectorInboxPersistenceAdapterIT {
     jdbcTemplate.execute("DROP FUNCTION IF EXISTS " + FUNCTION_NAME + "()");
   }
 
-  private static ClaimedConnectorOutboxEvent completedEvent(UUID eventId, String payload) {
-    return new ClaimedConnectorOutboxEvent(
+  private static ConnectorIntegrationEventEnvelope completedEvent(UUID eventId, String payload) {
+    return new ConnectorIntegrationEventEnvelope(
         eventId,
         ConnectorIntegrationEventType.IMPORT_RUN_COMPLETED.eventType(),
         ConnectorIntegrationEventType.IMPORT_RUN_COMPLETED.schemaVersion(),
@@ -250,10 +244,7 @@ class ConnectorInboxPersistenceAdapterIT {
         ConnectorIntegrationEventType.IMPORT_RUN_COMPLETED.aggregateType(),
         IMPORT_RUN_ID,
         payload,
-        NOW.minusSeconds(30),
-        1,
-        "worker-a",
-        NOW.minusSeconds(1));
+        NOW.minusSeconds(30));
   }
 
   private static String completedPayload(int accepted) {

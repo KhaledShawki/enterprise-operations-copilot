@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorEventPublicationException;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEventEnvelope;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.outbox.ClaimedConnectorOutboxEvent;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.outbox.ConnectorOutboxClaim;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.outbox.ConnectorOutboxPublicationFailure;
@@ -33,14 +34,14 @@ class PublishConnectorOutboxBatchServiceTest {
   @Test
   void shouldPublishAndAcknowledgeEveryClaimedEvent() {
     RecordingRepository repository = new RecordingRepository(List.of(event(1, 1), event(2, 1)));
-    List<UUID> publishedIds = new ArrayList<>();
-    PublishConnectorOutboxBatchService service =
-        service(repository, event -> publishedIds.add(event.eventId()), 3);
+    List<ConnectorIntegrationEventEnvelope> published = new ArrayList<>();
+    PublishConnectorOutboxBatchService service = service(repository, published::add, 3);
 
     PublishConnectorOutboxBatchResult result = service.publishBatch(command());
 
     assertEquals(new PublishConnectorOutboxBatchResult(2, 2, 0, 0), result);
-    assertEquals(List.of(eventId(1), eventId(2)), publishedIds);
+    assertEquals(
+        List.of(event(1, 1).integrationEvent(), event(2, 1).integrationEvent()), published);
     assertEquals(List.of(eventId(1), eventId(2)), repository.successIds());
     assertEquals(List.of(1, 1), repository.successAttempts());
     assertTrue(repository.retries.isEmpty());
