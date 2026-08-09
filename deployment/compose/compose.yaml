@@ -108,6 +108,72 @@ services:
     networks:
       - identity
 
+  kafka:
+    image: apache/kafka:4.2.1
+    hostname: kafka
+    restart: unless-stopped
+
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"
+      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+
+    volumes:
+      - kafka-data:/tmp/kraft-combined-logs
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+    networks:
+      - platform
+
+  kafka-topic-init:
+    image: apache/kafka:4.2.1
+    restart: "no"
+
+    environment:
+      EOC_CONNECTOR_EVENTS_KAFKA_TOPIC: "${EOC_CONNECTOR_EVENTS_KAFKA_TOPIC:?EOC_CONNECTOR_EVENTS_KAFKA_TOPIC is required}"
+
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:9092 \
+          --create \
+          --if-not-exists \
+          --topic "$${EOC_CONNECTOR_EVENTS_KAFKA_TOPIC}" \
+          --partitions 6 \
+          --replication-factor 1
+
+    networks:
+      - platform
+
   platform-service:
     image: eoc/platform-service:local
 
@@ -135,6 +201,9 @@ services:
       EOC_SECURITY_JWK_SET_URI: "http://keycloak:8080/realms/eoc/protocol/openid-connect/certs"
       EOC_SECURITY_AUDIENCE: "platform-api"
       EOC_CONNECTOR_OUTBOX_RELAY_ENABLED: "true"
+      EOC_CONNECTOR_EVENTS_TRANSPORT: "kafka"
+      EOC_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      EOC_CONNECTOR_EVENTS_KAFKA_TOPIC: "${EOC_CONNECTOR_EVENTS_KAFKA_TOPIC:?EOC_CONNECTOR_EVENTS_KAFKA_TOPIC is required}"
 
     ports:
       - "127.0.0.1:${PLATFORM_HTTP_PORT:?PLATFORM_HTTP_PORT is required}:8080"
@@ -144,6 +213,8 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy
+      kafka-topic-init:
+        condition: service_completed_successfully
 
     networks:
       - platform
@@ -152,6 +223,7 @@ services:
 volumes:
   platform-postgres-data:
   keycloak-postgres-data:
+  kafka-data:
 
 networks:
   platform:

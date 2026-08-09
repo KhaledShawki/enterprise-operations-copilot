@@ -57,7 +57,7 @@ public final class PublishConnectorOutboxBatchService
     int failed = 0;
     for (ClaimedConnectorOutboxEvent event : claimed) {
       try {
-        eventPublisher.publish(event);
+        eventPublisher.publish(event.integrationEvent());
       } catch (ConnectorEventPublicationException exception) {
         Instant recordedAt = clock.instant();
         if (exception.retryable() && event.publicationAttempt() < publicationPolicy.maxAttempts()) {

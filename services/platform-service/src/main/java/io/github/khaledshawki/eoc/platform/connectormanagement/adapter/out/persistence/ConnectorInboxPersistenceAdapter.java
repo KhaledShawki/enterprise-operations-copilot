@@ -1,14 +1,14 @@
 package io.github.khaledshawki.eoc.platform.connectormanagement.adapter.out.persistence;
 
-import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorEventPublicationException;
+import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorEventConsumptionException;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEvent;
+import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEventEnvelope;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEventPayload;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEventType;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ImportRunCompletedPayload;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ImportRunFailedPayload;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ImportRunRetryScheduledPayload;
-import io.github.khaledshawki.eoc.connectormanagement.application.model.outbox.ClaimedConnectorOutboxEvent;
-import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventPublisher;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventInbox;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -26,7 +26,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 @Repository
-class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventPublisher {
+class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventInbox {
 
   private static final String UNSUPPORTED_CONTRACT = "unsupported-connector-event-contract";
   private static final String INVALID_PAYLOAD = "invalid-connector-event-payload";
@@ -45,22 +45,22 @@ class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventPubli
 
   @Override
   @Transactional
-  public void publish(ClaimedConnectorOutboxEvent event) {
-    Objects.requireNonNull(event, "Claimed connector outbox event cannot be null");
+  public void consume(ConnectorIntegrationEventEnvelope event) {
+    Objects.requireNonNull(event, "Connector integration event cannot be null");
     ConnectorIntegrationEventType eventType = requireSupportedContract(event);
     requireValidPayload(event, eventType);
 
     try {
       consumeOnce(event);
-    } catch (ConnectorEventPublicationException exception) {
+    } catch (ConnectorEventConsumptionException exception) {
       throw exception;
     } catch (DataAccessException exception) {
-      throw new ConnectorEventPublicationException(INBOX_UNAVAILABLE, true, exception);
+      throw new ConnectorEventConsumptionException(INBOX_UNAVAILABLE, true, exception);
     }
   }
 
   private void requireValidPayload(
-      ClaimedConnectorOutboxEvent event, ConnectorIntegrationEventType eventType) {
+      ConnectorIntegrationEventEnvelope event, ConnectorIntegrationEventType eventType) {
     try {
       ConnectorIntegrationEventPayload payload =
           switch (eventType) {
@@ -80,11 +80,11 @@ class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventPubli
           event.occurredAt(),
           payload);
     } catch (JacksonException | IllegalArgumentException exception) {
-      throw new ConnectorEventPublicationException(INVALID_PAYLOAD, false, exception);
+      throw new ConnectorEventConsumptionException(INVALID_PAYLOAD, false, exception);
     }
   }
 
-  private void consumeOnce(ClaimedConnectorOutboxEvent event) {
+  private void consumeOnce(ConnectorIntegrationEventEnvelope event) {
     String fingerprint = fingerprint(event);
     Instant processedAt = clock.instant();
     int inserted =
@@ -124,7 +124,7 @@ class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventPubli
               String.class,
               event.eventId());
       if (!fingerprint.equals(storedFingerprint)) {
-        throw new ConnectorEventPublicationException(EVENT_ID_COLLISION, false, null);
+        throw new ConnectorEventConsumptionException(EVENT_ID_COLLISION, false, null);
       }
       return;
     }
@@ -153,7 +153,7 @@ class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventPubli
   }
 
   private static ConnectorIntegrationEventType requireSupportedContract(
-      ClaimedConnectorOutboxEvent event) {
+      ConnectorIntegrationEventEnvelope event) {
     for (ConnectorIntegrationEventType type : ConnectorIntegrationEventType.values()) {
       if (type.eventType().equals(event.eventType())
           && type.schemaVersion() == event.schemaVersion()
@@ -161,10 +161,10 @@ class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventPubli
         return type;
       }
     }
-    throw new ConnectorEventPublicationException(UNSUPPORTED_CONTRACT, false, null);
+    throw new ConnectorEventConsumptionException(UNSUPPORTED_CONTRACT, false, null);
   }
 
-  private static String fingerprint(ClaimedConnectorOutboxEvent event) {
+  private static String fingerprint(ConnectorIntegrationEventEnvelope event) {
     MessageDigest digest;
     try {
       digest = MessageDigest.getInstance("SHA-256");

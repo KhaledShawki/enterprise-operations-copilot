@@ -6,6 +6,8 @@ This runbook operates the complete local Enterprise Operations Copilot platform:
 - `platform-postgres`
 - `keycloak`
 - `keycloak-postgres`
+- `kafka`
+- one-shot `kafka-topic-init`
 
 The configuration is intended only for local development. It is not a production
 deployment model.
@@ -53,8 +55,9 @@ docker compose \
   up --detach --build --wait --wait-timeout 240
 ```
 
-Compose waits for both PostgreSQL databases, Keycloak, and the platform service to
-become healthy.
+Compose waits for both PostgreSQL databases, Keycloak, Kafka, the Connector integration-events
+topic initialization, and the platform service. The one-shot `kafka-topic-init` container must exit
+successfully before the platform service starts.
 
 ## Check service health
 
@@ -62,10 +65,11 @@ become healthy.
 docker compose \
   --env-file deployment/compose/.env \
   -f deployment/compose/compose.yaml \
-  ps
+  ps --all
 ```
 
-All four services should report `healthy`.
+The five long-running services should be running, health-checked services should report `healthy`,
+and `kafka-topic-init` should report a successful exit.
 
 Verify the application probes:
 
@@ -86,6 +90,22 @@ Both responses should report:
   "status": "UP"
 }
 ```
+
+Verify that the Connector integration-events topic exists with the expected local partition count:
+
+```bash
+docker compose \
+  --env-file deployment/compose/.env \
+  -f deployment/compose/compose.yaml \
+  exec -T kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka:9092 \
+  --describe \
+  --topic "$(grep '^EOC_CONNECTOR_EVENTS_KAFKA_TOPIC=' deployment/compose/.env | cut -d= -f2-)"
+```
+
+The topic should report six partitions and replication factor one in the single-node local
+environment. Topic creation is handled by Compose only for local development; production topics are
+provisioned by infrastructure automation.
 
 Verify that business APIs remain protected:
 
@@ -118,6 +138,15 @@ Expected output:
 1
 2
 3
+4
+5
+6
+7
+8
+9
+10
+11
+12
 ```
 
 Flyway owns schema migration. Hibernate validates the migrated schema and must not
@@ -167,7 +196,7 @@ Display recent platform logs:
 docker compose \
   --env-file deployment/compose/.env \
   -f deployment/compose/compose.yaml \
-  logs --tail=150 platform-service platform-postgres
+  logs --tail=150 platform-service platform-postgres kafka
 ```
 
 Display recent identity-provider logs:
@@ -209,7 +238,7 @@ docker compose \
 ```
 
 Run the service-health and migration checks again. The services should become healthy,
-and the Flyway history should still contain versions `1`, `2`, and `3`.
+and the Flyway history should still contain versions `1` through `12`.
 
 ## Stop the platform
 
@@ -220,12 +249,12 @@ docker compose \
   down
 ```
 
-The named PostgreSQL volumes are preserved.
+The named PostgreSQL and Kafka volumes are preserved.
 
 ## Reset all local data
 
-Warning: this permanently deletes both the platform and Keycloak local databases.
-Use it only when an intentionally clean environment is required.
+Warning: this permanently deletes both local PostgreSQL databases and the local Kafka log. Use it
+only when an intentionally clean environment is required.
 
 ```bash
 docker compose \
@@ -234,8 +263,9 @@ docker compose \
   down --volumes --remove-orphans
 ```
 
-The next startup recreates both databases, imports the Keycloak realm, runs Flyway
-migrations, and validates the application schema.
+The next startup recreates both databases and the Kafka data volume, imports the Keycloak realm,
+runs Flyway migrations, recreates the local Connector integration-events topic, and validates the
+application schema.
 
 ## Diagnose an unhealthy platform service
 
@@ -256,6 +286,7 @@ docker compose \
   logs --tail=200 platform-service
 ```
 
-Common causes include an unavailable database, invalid local credentials, occupied
-host ports, or a Keycloak realm that was not re-imported after its source configuration
-changed.
+Common causes include an unavailable database, invalid local credentials, occupied host ports, a
+Kafka topic-initialization failure, or a Keycloak realm that was not re-imported after its source
+configuration changed. A temporary Kafka outage after startup does not make application readiness
+depend on the broker; Connector events remain durable in the PostgreSQL outbox and are retried.
