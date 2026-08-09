@@ -35,4 +35,9 @@ public class OperationsPersistenceConfiguration {
   PaymentSourceMappingPersistenceMapper paymentSourceMappingPersistenceMapper() {
     return new PaymentSourceMappingPersistenceMapper();
   }
+
+  @Bean
+  ReceivableSettlementPersistenceMapper receivableSettlementPersistenceMapper() {
+    return new ReceivableSettlementPersistenceMapper();
+  }
 }
