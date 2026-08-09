@@ -8,6 +8,12 @@ public final class ReceivableSettlementStateCorruptedException extends RuntimeEx
     super(requireDetail(detail));
   }
 
+  public ReceivableSettlementStateCorruptedException(String detail, Throwable cause) {
+    super(
+        requireDetail(detail),
+        Objects.requireNonNull(cause, "Receivable settlement corruption cause cannot be null"));
+  }
+
   private static String requireDetail(String detail) {
     Objects.requireNonNull(detail, "Receivable settlement corruption detail cannot be null");
     if (detail.isBlank()) {
