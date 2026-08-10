@@ -68,6 +68,7 @@ import tools.jackson.databind.json.JsonMapper;
     properties = {
       "eoc.connector-events.transport=kafka",
       "eoc.connector-events.kafka.topic=eoc.connector.integration-events.test",
+      "eoc.connector-events.kafka.consumer.enabled=false",
       "eoc.connector-events.kafka.send-timeout=10s",
       "eoc.connector-outbox.relay-enabled=false",
       "spring.kafka.producer.properties[delivery.timeout.ms]=8000",

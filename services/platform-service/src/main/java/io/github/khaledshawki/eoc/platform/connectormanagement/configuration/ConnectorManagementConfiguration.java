@@ -2,6 +2,7 @@ package io.github.khaledshawki.eoc.platform.connectormanagement.configuration;
 
 import io.github.khaledshawki.eoc.connectormanagement.application.model.importing.ImportRetryPolicy;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ActivateConnectorUseCase;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ConsumeConnectorIntegrationEventUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.CreateConnectorUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ExecuteImportRunUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.GetConnectorUseCase;
@@ -12,11 +13,13 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.out.Busin
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessPartnerImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorEventIdGenerator;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventInbox;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ImportRunRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.InvoiceImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.PaymentImportPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.ActivateConnectorService;
+import io.github.khaledshawki.eoc.connectormanagement.application.service.ConsumeConnectorIntegrationEventService;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.CreateConnectorService;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.ExecuteImportRunService;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.GetConnectorService;
@@ -31,6 +34,12 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 public class ConnectorManagementConfiguration {
+
+  @Bean
+  ConsumeConnectorIntegrationEventUseCase consumeConnectorIntegrationEventUseCase(
+      ConnectorIntegrationEventInbox inbox) {
+    return new ConsumeConnectorIntegrationEventService(inbox);
+  }
 
   @Bean
   CreateConnectorUseCase createConnectorUseCase(

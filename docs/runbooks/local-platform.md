@@ -7,7 +7,7 @@ This runbook operates the complete local Enterprise Operations Copilot platform:
 - `keycloak`
 - `keycloak-postgres`
 - `kafka`
-- one-shot `kafka-topic-init`
+- one-shot `kafka-topic-init` for the source and dead-letter topics
 
 The configuration is intended only for local development. It is not a production
 deployment model.
@@ -55,8 +55,8 @@ docker compose \
   up --detach --build --wait --wait-timeout 240
 ```
 
-Compose waits for both PostgreSQL databases, Keycloak, Kafka, the Connector integration-events
-topic initialization, and the platform service. The one-shot `kafka-topic-init` container must exit
+Compose waits for both PostgreSQL databases, Keycloak, Kafka, both Connector event topic
+initializations, and the platform service. The one-shot `kafka-topic-init` container must exit
 successfully before the platform service starts.
 
 ## Check service health
@@ -91,7 +91,8 @@ Both responses should report:
 }
 ```
 
-Verify that the Connector integration-events topic exists with the expected local partition count:
+Verify that the Connector integration-events source and DLT topics exist with the expected local
+partition count:
 
 ```bash
 docker compose \
@@ -101,10 +102,19 @@ docker compose \
   --bootstrap-server kafka:9092 \
   --describe \
   --topic "$(grep '^EOC_CONNECTOR_EVENTS_KAFKA_TOPIC=' deployment/compose/.env | cut -d= -f2-)"
+
+docker compose \
+  --env-file deployment/compose/.env \
+  -f deployment/compose/compose.yaml \
+  exec -T kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka:9092 \
+  --describe \
+  --topic "$(grep '^EOC_CONNECTOR_EVENTS_KAFKA_DLT_TOPIC=' deployment/compose/.env | cut -d= -f2-)"
 ```
 
-The topic should report six partitions and replication factor one in the single-node local
-environment. Topic creation is handled by Compose only for local development; production topics are
+Both topics should report six partitions and replication factor one in the single-node local
+environment. Matching partition counts preserve the failed source partition when a record is sent
+to the DLT. Topic creation is handled by Compose only for local development; production topics are
 provisioned by infrastructure automation.
 
 Verify that business APIs remain protected:
@@ -264,8 +274,8 @@ docker compose \
 ```
 
 The next startup recreates both databases and the Kafka data volume, imports the Keycloak realm,
-runs Flyway migrations, recreates the local Connector integration-events topic, and validates the
-application schema.
+runs Flyway migrations, recreates the local Connector integration-events source and DLT topics, and
+validates the application schema.
 
 ## Diagnose an unhealthy platform service
 

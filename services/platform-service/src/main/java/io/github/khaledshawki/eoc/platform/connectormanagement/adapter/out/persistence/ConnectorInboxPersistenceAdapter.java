@@ -123,7 +123,7 @@ class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventInbox
               "SELECT payload_fingerprint FROM connector_inbox_events WHERE event_id = ?",
               String.class,
               event.eventId());
-      if (!fingerprint.equals(storedFingerprint)) {
+      if (!fingerprint.equals(storedFingerprint) && !hasIdenticalImmutableContent(event)) {
         throw new ConnectorEventConsumptionException(EVENT_ID_COLLISION, false, null);
       }
       return;
@@ -150,6 +150,32 @@ class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventInbox
         event.payload(),
         Timestamp.from(event.occurredAt()),
         Timestamp.from(processedAt));
+  }
+
+  private boolean hasIdenticalImmutableContent(ConnectorIntegrationEventEnvelope event) {
+    Boolean identical =
+        jdbcTemplate.queryForObject(
+            """
+            SELECT event_type = ?
+              AND schema_version = ?
+              AND tenant_id = ?
+              AND aggregate_type = ?
+              AND aggregate_id = ?
+              AND payload = CAST(? AS jsonb)
+              AND occurred_at = ?
+            FROM connector_inbox_events
+            WHERE event_id = ?
+            """,
+            Boolean.class,
+            event.eventType(),
+            event.schemaVersion(),
+            event.tenantId(),
+            event.aggregateType(),
+            event.aggregateId(),
+            event.payload(),
+            Timestamp.from(event.occurredAt()),
+            event.eventId());
+    return Boolean.TRUE.equals(identical);
   }
 
   private static ConnectorIntegrationEventType requireSupportedContract(

@@ -23,7 +23,19 @@ ConnectorIntegrationEventPublisher
         |
         +---- local ----> ConnectorIntegrationEventInbox ----> durable inbox + projection
         |
-        +---- kafka ----> Kafka topic
+        +---- kafka ----> Kafka source topic
+                              |
+                              v
+                   KafkaConnectorIntegrationEventConsumer
+                              |
+                              v
+                   ConsumeConnectorIntegrationEventUseCase
+                              |
+                              v
+                   ConnectorIntegrationEventInbox
+                              |
+                              v
+                    durable inbox + projection
 ```
 
 `local` is the default so normal tests and lightweight development do not require a broker. The
@@ -50,7 +62,10 @@ deliver an event; they are not facts about the event itself.
 
 Kafka values are JSON objects containing the complete envelope. The nested `payload` remains a JSON
 object rather than a JSON string. This keeps the wire format portable across languages and avoids a
-second parsing layer for consumers.
+second parsing layer for consumers. The inbound adapter rejects blank, oversized, malformed,
+non-object, incomplete, or extended envelopes before invoking the application. UUIDs, timestamps,
+field types, and the object-valued payload are validated structurally at this boundary; supported
+event contracts and typed payload invariants remain application/persistence concerns.
 
 ## Topic and ordering
 
@@ -86,7 +101,21 @@ be published again.
 
 Consumers must therefore use `eventId` as the idempotency identity. The existing Connector inbox
 already enforces this rule: the same event id with the same immutable content is a replay, while the
-same id with different content is a collision and is rejected.
+same id with different content is a collision and is rejected. JSON payload comparison uses
+PostgreSQL `jsonb` equality on the duplicate slow path, so harmless object-property ordering or
+whitespace changes do not create false collisions. All other immutable envelope fields must still
+match exactly.
+
+Kafka consumption is also at least once. Auto-commit is disabled and the dedicated listener
+container uses record acknowledgement. A source offset advances only after one of these outcomes:
+
+1. the application use case returns after the inbox receipt and projection commit atomically;
+2. an identical `eventId` replay is absorbed by that durable inbox; or
+3. bounded recovery publishes the original key and value to the DLT successfully.
+
+If the process stops after the PostgreSQL commit but before the Kafka offset commit, Kafka redelivers
+the record and inbox idempotency absorbs it. No distributed transaction is required: broker delivery
+is at least once while the database effect is idempotent/effectively once.
 
 No Kafka transaction is used for outbox publication. A Kafka transaction cannot atomically include
 the PostgreSQL business transaction. The transactional outbox is the atomicity mechanism, and
@@ -140,11 +169,32 @@ The outbox retains its existing attempt budget and retry schedule. Kafka client 
 inner transport retry layer bounded by Kafka delivery timeout; outbox retry is the durable outer
 retry layer.
 
+On consumption, malformed envelopes, routing-key mismatches, unsupported contracts, invalid typed
+payloads, and event-id collisions are terminal. Retryable inbox/database failures and unexpected
+application failures use a finite fixed-backoff attempt budget. After terminal failure or retry
+exhaustion, the dead-letter recoverer publishes to the configured DLT using the original source
+partition. The DLT record preserves the source key and value, Spring Kafka failure/origin headers,
+and stable Connector failure-code/retryability headers.
+
+Startup rejects a retry-backoff plus worst-case DLT-publication budget that reaches Kafka's
+`max.poll.interval`. The poll size is also bounded so one consumer does not accumulate an unbounded
+record-processing horizon between polls. These safeguards avoid predictable rebalance churn while
+still allowing concurrency across source partitions and horizontal instances in the same group.
+
+DLT publication is synchronous from the recovery boundary and fails closed. A missing topic,
+undersized partition set, authorization failure, or send timeout leaves the source record
+unrecovered and its offset uncommitted, so it remains eligible for delivery. The source and DLT must
+therefore be provisioned explicitly with the same partition count. Infinite listener retry is not
+permitted. There is still no transaction spanning DLT publication and the source-offset commit, so a
+crash in that narrow window can duplicate a DLT record. Operational replay must retain `eventId` and
+remain idempotent rather than treating the DLT as exactly once.
+
 ## Observability
 
-KafkaTemplate observation is enabled. Broker publication latency and failures can therefore join the
-platform's Micrometer Observation pipeline without coupling Connector Management to Kafka APIs.
-Kafka APIs are restricted by architecture tests to the Kafka outbound adapter package.
+KafkaTemplate observation and listener-container observation are enabled. Broker publication,
+listener processing, failures, and consumer-client lag metrics can therefore join the platform's
+Micrometer Observation pipeline without coupling Connector Management to Kafka APIs. Kafka APIs are
+restricted by architecture tests to inbound/outbound Kafka adapter packages.
 
 No Kafka health dependency is added to the application readiness group. A broker outage must not
 make the HTTP/API process unavailable or prevent PostgreSQL business transactions. During a broker
@@ -153,15 +203,16 @@ policy.
 
 ## Topic lifecycle
 
-The application does not create production topics. Topic creation and broker policy are operational
-infrastructure concerns.
+The application does not create production topics. Source/DLT creation and broker policy are
+operational infrastructure concerns.
 
 The local Docker Compose environment uses a one-shot topic-initialization container because it is a
-development environment. Production infrastructure should provision the topic through IaC and use
+development environment. Production infrastructure should provision both topics through IaC and use
 multiple brokers, an appropriate replication factor/minimum ISR, retention policy, quotas, and
-TLS/SASL authentication appropriate to the deployment platform. Increasing a topic's partition count
-can remap keyed aggregates to different partitions, so partition-count changes must be treated as an
-ordering-aware operational change rather than a transparent scaling knob.
+TLS/SASL authentication appropriate to the deployment platform. Increasing the source topic's
+partition count can remap keyed aggregates to different partitions and requires a coordinated DLT
+partition-count increase, so it must be treated as an ordering-aware operational change rather than
+a transparent scaling knob.
 
 ## Security boundary
 
@@ -173,11 +224,14 @@ and authentication mechanism.
 No credentials, claim metadata, or internal retry state are placed in the event payload or Kafka
 record.
 
-## Scope boundary
+## Application boundary
 
-This slice establishes publication only. It deliberately does not add a Kafka consumer.
+The Kafka listener is an inbound adapter. It calls
+`ConsumeConnectorIntegrationEventUseCase`, implemented by
+`ConsumeConnectorIntegrationEventService`; that service owns the call to the
+`ConnectorIntegrationEventInbox` output port. The listener never invokes persistence or an output
+port directly. This keeps the transport replaceable and makes retry/DLT policy an infrastructure
+concern while durable consumption rules stay behind the application boundary.
 
-The next transport slice should deserialize and validate Kafka records, pass the broker-neutral
-envelope to `ConnectorIntegrationEventInbox`, preserve event-id deduplication, and commit Kafka
-offsets only after durable inbox processing succeeds. Operations events should be introduced only
-after both producer and consumer transport boundaries are proven.
+This slice consumes Connector events only. Operations events remain outside the transport until a
+separate event contract and ownership decision are made.
