@@ -155,6 +155,7 @@ services:
 
     environment:
       EOC_CONNECTOR_EVENTS_KAFKA_TOPIC: "${EOC_CONNECTOR_EVENTS_KAFKA_TOPIC:?EOC_CONNECTOR_EVENTS_KAFKA_TOPIC is required}"
+      EOC_CONNECTOR_EVENTS_KAFKA_DLT_TOPIC: "${EOC_CONNECTOR_EVENTS_KAFKA_DLT_TOPIC:?EOC_CONNECTOR_EVENTS_KAFKA_DLT_TOPIC is required}"
 
     depends_on:
       kafka:
@@ -168,6 +169,13 @@ services:
           --create \
           --if-not-exists \
           --topic "$${EOC_CONNECTOR_EVENTS_KAFKA_TOPIC}" \
+          --partitions 6 \
+          --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:9092 \
+          --create \
+          --if-not-exists \
+          --topic "$${EOC_CONNECTOR_EVENTS_KAFKA_DLT_TOPIC}" \
           --partitions 6 \
           --replication-factor 1
 
@@ -204,6 +212,7 @@ services:
       EOC_CONNECTOR_EVENTS_TRANSPORT: "kafka"
       EOC_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
       EOC_CONNECTOR_EVENTS_KAFKA_TOPIC: "${EOC_CONNECTOR_EVENTS_KAFKA_TOPIC:?EOC_CONNECTOR_EVENTS_KAFKA_TOPIC is required}"
+      EOC_CONNECTOR_EVENTS_KAFKA_DLT_TOPIC: "${EOC_CONNECTOR_EVENTS_KAFKA_DLT_TOPIC:?EOC_CONNECTOR_EVENTS_KAFKA_DLT_TOPIC is required}"
 
     ports:
       - "127.0.0.1:${PLATFORM_HTTP_PORT:?PLATFORM_HTTP_PORT is required}:8080"

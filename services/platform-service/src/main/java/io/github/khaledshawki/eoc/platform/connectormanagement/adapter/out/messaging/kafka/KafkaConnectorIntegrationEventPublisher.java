@@ -9,6 +9,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.model.event.Im
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ImportRunFailedPayload;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ImportRunRetryScheduledPayload;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventPublisher;
+import io.github.khaledshawki.eoc.platform.connectormanagement.adapter.messaging.kafka.ConnectorKafkaRecordKey;
 import io.github.khaledshawki.eoc.platform.connectormanagement.configuration.ConnectorKafkaProperties;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -69,7 +70,11 @@ final class KafkaConnectorIntegrationEventPublisher implements ConnectorIntegrat
     Objects.requireNonNull(event, "Connector integration event cannot be null");
     ProducerRecord<String, String> record =
         new ProducerRecord<>(
-            topic, null, event.occurredAt().toEpochMilli(), partitionKey(event), serialize(event));
+            topic,
+            null,
+            event.occurredAt().toEpochMilli(),
+            ConnectorKafkaRecordKey.from(event),
+            serialize(event));
 
     CompletableFuture<SendResult<String, String>> send;
     try {
@@ -94,11 +99,6 @@ final class KafkaConnectorIntegrationEventPublisher implements ConnectorIntegrat
     } catch (ExecutionException exception) {
       throw classify(exception.getCause() == null ? exception : exception.getCause());
     }
-  }
-
-  static String partitionKey(ConnectorIntegrationEventEnvelope event) {
-    Objects.requireNonNull(event, "Connector integration event cannot be null");
-    return event.tenantId() + ":" + event.aggregateType() + ":" + event.aggregateId();
   }
 
   private String serialize(ConnectorIntegrationEventEnvelope event) {

@@ -12,13 +12,7 @@ public record ConnectorKafkaProperties(
   private static final Pattern TOPIC = Pattern.compile("[A-Za-z0-9._-]+");
 
   public ConnectorKafkaProperties {
-    Objects.requireNonNull(topic, "Connector Kafka topic cannot be null");
-    if (topic.length() > 249
-        || topic.equals(".")
-        || topic.equals("..")
-        || !TOPIC.matcher(topic).matches()) {
-      throw new IllegalArgumentException("Connector Kafka topic is invalid");
-    }
+    topic = requireTopic(topic, "Connector Kafka topic");
 
     Objects.requireNonNull(sendTimeout, "Connector Kafka send timeout cannot be null");
     if (sendTimeout.isZero() || sendTimeout.isNegative()) {
@@ -29,5 +23,16 @@ public record ConnectorKafkaProperties(
     if (maxBlockTimeout.isZero() || maxBlockTimeout.isNegative()) {
       throw new IllegalArgumentException("Connector Kafka max-block timeout must be positive");
     }
+  }
+
+  static String requireTopic(String value, String description) {
+    Objects.requireNonNull(value, description + " cannot be null");
+    if (value.length() > 249
+        || value.equals(".")
+        || value.equals("..")
+        || !TOPIC.matcher(value).matches()) {
+      throw new IllegalArgumentException(description + " is invalid");
+    }
+    return value;
   }
 }

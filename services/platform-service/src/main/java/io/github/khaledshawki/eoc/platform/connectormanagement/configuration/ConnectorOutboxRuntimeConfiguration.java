@@ -57,7 +57,8 @@ public class ConnectorOutboxRuntimeConfiguration {
       }
       if (claimLease.compareTo(batchPublicationBudget) <= 0) {
         throw new IllegalStateException(
-            "Connector outbox claim lease must exceed the worst-case sequential Kafka publication budget for the configured batch size");
+            "Connector outbox claim lease must exceed the worst-case sequential Kafka publication"
+                + " budget for the configured batch size");
       }
     }
     return new ConnectorOutboxScheduledRelay(

@@ -78,6 +78,16 @@ class ConnectorInboxPersistenceAdapterIT {
   }
 
   @Test
+  void shouldTreatSemanticallyIdenticalJsonAsAnIdempotentReplay() {
+    eventInbox.consume(completedEvent(EVENT_ID, completedPayload(2)));
+
+    eventInbox.consume(completedEvent(EVENT_ID, completedPayloadWithDifferentJsonLayout(2)));
+
+    assertEquals(1, count("connector_inbox_events"));
+    assertEquals(1, count("connector_import_run_event_projection"));
+  }
+
+  @Test
   void shouldRejectEventIdReuseWithDifferentContent() {
     eventInbox.consume(completedEvent(EVENT_ID, completedPayload(2)));
 
@@ -85,6 +95,31 @@ class ConnectorInboxPersistenceAdapterIT {
         assertThrows(
             ConnectorEventConsumptionException.class,
             () -> eventInbox.consume(completedEvent(EVENT_ID, completedPayload(3))));
+
+    assertEquals("connector-event-id-collision", exception.failureCode());
+    assertFalse(exception.retryable());
+    assertEquals(1, count("connector_inbox_events"));
+    assertEquals(1, count("connector_import_run_event_projection"));
+  }
+
+  @Test
+  void shouldRejectEventIdReuseWhenImmutableMetadataChanges() {
+    ConnectorIntegrationEventEnvelope original = completedEvent(EVENT_ID, completedPayload(2));
+    eventInbox.consume(original);
+    ConnectorIntegrationEventEnvelope changedOccurrence =
+        new ConnectorIntegrationEventEnvelope(
+            original.eventId(),
+            original.eventType(),
+            original.schemaVersion(),
+            original.tenantId(),
+            original.aggregateType(),
+            original.aggregateId(),
+            original.payload(),
+            original.occurredAt().plusSeconds(1));
+
+    ConnectorEventConsumptionException exception =
+        assertThrows(
+            ConnectorEventConsumptionException.class, () -> eventInbox.consume(changedOccurrence));
 
     assertEquals("connector-event-id-collision", exception.failureCode());
     assertFalse(exception.retryable());
@@ -249,18 +284,27 @@ class ConnectorInboxPersistenceAdapterIT {
 
   private static String completedPayload(int accepted) {
     return """
-        {
-          "connectorId": "00000000-0000-0000-0000-000000000083",
-          "importType": "CUSTOMERS",
-          "importMode": "INCREMENTAL",
-          "status": "COMPLETED",
-          "fetchedCount": %d,
-          "acceptedCount": %d,
-          "rejectedCount": 0,
-          "duplicateCount": 0,
-          "attemptCount": 1
-        }
-        """
+    {
+      "connectorId": "00000000-0000-0000-0000-000000000083",
+      "importType": "CUSTOMERS",
+      "importMode": "INCREMENTAL",
+      "status": "COMPLETED",
+      "fetchedCount": %d,
+      "acceptedCount": %d,
+      "rejectedCount": 0,
+      "duplicateCount": 0,
+      "attemptCount": 1
+    }
+    """
+        .formatted(accepted, accepted);
+  }
+
+  private static String completedPayloadWithDifferentJsonLayout(int accepted) {
+    return """
+    {"attemptCount":1,"duplicateCount":0,"rejectedCount":0,"acceptedCount":%d,
+     "fetchedCount":%d,"status":"COMPLETED","importMode":"INCREMENTAL",
+     "importType":"CUSTOMERS","connectorId":"00000000-0000-0000-0000-000000000083"}
+    """
         .formatted(accepted, accepted);
   }
 

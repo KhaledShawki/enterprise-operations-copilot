@@ -6,6 +6,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ConsumeConnectorIntegrationEventUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventInbox;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventPublisher;
 import org.junit.jupiter.api.Test;
@@ -14,9 +15,11 @@ class ConnectorEventTransportArchitectureTest {
 
   private static final String PLATFORM_PACKAGE = "io.github.khaledshawki.eoc.platform";
   private static final String CONNECTOR_MESSAGING_PACKAGE =
-      PLATFORM_PACKAGE + ".connectormanagement.adapter.out.messaging..";
+      PLATFORM_PACKAGE + ".connectormanagement.adapter..messaging..";
+  private static final String CONNECTOR_KAFKA_INBOUND_PACKAGE =
+      PLATFORM_PACKAGE + ".connectormanagement.adapter.in.messaging.kafka..";
   private static final String CONNECTOR_KAFKA_PACKAGE =
-      PLATFORM_PACKAGE + ".connectormanagement.adapter.out.messaging.kafka..";
+      PLATFORM_PACKAGE + ".connectormanagement.adapter..messaging.kafka..";
   private static final String CONNECTOR_PERSISTENCE_PACKAGE =
       PLATFORM_PACKAGE + ".connectormanagement.adapter.out.persistence..";
 
@@ -60,6 +63,29 @@ class ConnectorEventTransportArchitectureTest {
   }
 
   @Test
+  void inboundKafkaAdapterEntersThroughTheApplicationInputPort() {
+    classes()
+        .that()
+        .haveSimpleName("KafkaConnectorIntegrationEventConsumer")
+        .should()
+        .dependOnClassesThat()
+        .areAssignableTo(ConsumeConnectorIntegrationEventUseCase.class)
+        .andShould()
+        .resideInAPackage(CONNECTOR_KAFKA_INBOUND_PACKAGE)
+        .because("an inbound transport must not bypass the connector application boundary")
+        .check(PLATFORM_CLASSES);
+
+    noClasses()
+        .that()
+        .resideInAPackage(CONNECTOR_KAFKA_INBOUND_PACKAGE)
+        .should()
+        .dependOnClassesThat()
+        .areAssignableTo(ConnectorIntegrationEventInbox.class)
+        .because("the Kafka listener must not invoke an application output port directly")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
   void kafkaTechnologyDoesNotLeakOutsideTheKafkaAdapter() {
     noClasses()
         .that()
@@ -67,7 +93,7 @@ class ConnectorEventTransportArchitectureTest {
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("org.apache.kafka..", "org.springframework.kafka..")
-        .because("Kafka must remain an outbound infrastructure detail")
+        .because("Kafka must remain a replaceable transport-adapter detail")
         .check(PLATFORM_CLASSES);
   }
 }
