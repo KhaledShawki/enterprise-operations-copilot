@@ -271,5 +271,7 @@ The Kafka listener is an inbound adapter. It calls
 port directly. This keeps the transport replaceable and makes retry/DLT policy an infrastructure
 concern while durable consumption rules stay behind the application boundary.
 
-This slice consumes Connector events only. Operations events remain outside the transport until a
-separate event contract and ownership decision are made.
+This transport consumes Connector events only. Operations owns a separate event catalog and
+contract described in [Operations Integration Event Contracts](operations-event-contracts.md).
+Operations outbox and transport infrastructure remain a separate implementation boundary and must
+not reuse the Connector outbox or inbox.
