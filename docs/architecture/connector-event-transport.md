@@ -274,4 +274,5 @@ concern while durable consumption rules stay behind the application boundary.
 This transport consumes Connector events only. Operations owns a separate event catalog and
 contract described in [Operations Integration Event Contracts](operations-event-contracts.md).
 Operations outbox and transport infrastructure remain a separate implementation boundary and must
-not reuse the Connector outbox or inbox.
+not reuse the Connector outbox or inbox. Operations now persists its own versioned outbox records,
+but its Kafka publisher and scheduled relay are intentionally not wired by this Connector transport.

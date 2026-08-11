@@ -45,6 +45,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest
 @Import({
@@ -88,10 +89,13 @@ class InvoiceImportPersistenceIT {
   private SpringDataBusinessPartnerImportReceiptRepository
       springDataBusinessPartnerReceiptRepository;
 
+  @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private MutableClock clock;
 
   @BeforeEach
   void setUp() {
+    jdbcTemplate.update("DELETE FROM operations_outbox_events");
+    jdbcTemplate.update("DELETE FROM operations_event_stream_versions");
     springDataReceiptRepository.deleteAllInBatch();
     springDataSourceMappingRepository.deleteAllInBatch();
     springDataInvoiceRepository.deleteAllInBatch();
@@ -127,6 +131,7 @@ class InvoiceImportPersistenceIT {
     assertEquals(1, springDataInvoiceRepository.count());
     assertEquals(1, springDataSourceMappingRepository.count());
     assertEquals(1, springDataReceiptRepository.count());
+    assertEquals(1L, eventCount("operations.invoice.synchronized.v1"));
 
     InvoiceSourceMapping mapping = mapping(TENANT_ID, SOURCE_SYSTEM_ID, "invoice-1");
     Invoice invoice =
@@ -177,6 +182,7 @@ class InvoiceImportPersistenceIT {
     assertEquals(invoiceBefore.getVersion(), invoiceAfter.getVersion());
     assertEquals(FIRST_IMPORT_TIME, mappingAfter.getUpdatedAt());
     assertEquals(FIRST_IMPORT_TIME, invoiceAfter.getUpdatedAt());
+    assertEquals(1L, eventCount("operations.invoice.synchronized.v1"));
   }
 
   @Test
@@ -501,6 +507,13 @@ class InvoiceImportPersistenceIT {
                 SourceRecordIdentity.Kind.SOURCE_RECORD_ID,
                 sourceIdentity))
         .orElseThrow();
+  }
+
+  private long eventCount(String eventType) {
+    return jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM operations_outbox_events WHERE event_type = ?",
+        Long.class,
+        eventType);
   }
 
   private static ImportInvoicesCommand command(

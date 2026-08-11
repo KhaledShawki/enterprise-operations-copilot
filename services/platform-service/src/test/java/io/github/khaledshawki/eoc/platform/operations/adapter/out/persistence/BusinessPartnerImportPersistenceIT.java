@@ -76,6 +76,11 @@ class BusinessPartnerImportPersistenceIT {
 
   @BeforeEach
   void setUp() {
+    jdbcTemplate.execute(
+        "DROP TRIGGER IF EXISTS reject_operations_outbox_insert ON operations_outbox_events");
+    jdbcTemplate.execute("DROP FUNCTION IF EXISTS reject_operations_outbox_insert()");
+    jdbcTemplate.update("DELETE FROM operations_outbox_events");
+    jdbcTemplate.update("DELETE FROM operations_event_stream_versions");
     springDataReceiptRepository.deleteAllInBatch();
     springDataSourceMappingRepository.deleteAllInBatch();
     springDataBusinessPartnerRepository.deleteAllInBatch();
@@ -104,6 +109,20 @@ class BusinessPartnerImportPersistenceIT {
     assertEquals(1, springDataReceiptRepository.count());
     assertEquals(
         2L,
+        jdbcTemplate.queryForObject("SELECT count(*) FROM operations_outbox_events", Long.class));
+    assertEquals(
+        2L,
+        jdbcTemplate.queryForObject(
+            """
+            SELECT count(*)
+            FROM operations_outbox_events
+            WHERE event_type = 'operations.business-partner.synchronized.v1'
+              AND aggregate_version = 1
+              AND publish_status = 'PENDING'
+            """,
+            Long.class));
+    assertEquals(
+        2L,
         jdbcTemplate.queryForObject(
             "SELECT count(*) FROM operations_business_partner_roles WHERE role = 'CUSTOMER'",
             Long.class));
@@ -119,6 +138,62 @@ class BusinessPartnerImportPersistenceIT {
         businessPartnerRepository
             .findById(OperationsTenantId.of(OTHER_TENANT_ID), partner.id())
             .isEmpty());
+  }
+
+  @Test
+  void shouldRollBackCanonicalStateReceiptAndVersionWhenOutboxAppendFails() {
+    jdbcTemplate.execute(
+        """
+        CREATE FUNCTION reject_operations_outbox_insert()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $function$
+        BEGIN
+          RAISE EXCEPTION 'forced Operations outbox failure';
+        END;
+        $function$
+        """);
+    jdbcTemplate.execute(
+        """
+        CREATE TRIGGER reject_operations_outbox_insert
+        BEFORE INSERT ON operations_outbox_events
+        FOR EACH ROW
+        EXECUTE FUNCTION reject_operations_outbox_insert()
+        """);
+
+    try {
+      assertThrows(
+          RuntimeException.class,
+          () ->
+              importBusinessPartnersUseCase.importPage(
+                  command(
+                      TENANT_ID,
+                      SOURCE_SYSTEM_ID,
+                      IMPORT_BATCH_ID,
+                      PAGE_ACCEPTANCE_ID,
+                      List.of(
+                          record(
+                              "customer-rollback",
+                              "v1",
+                              FIRST_SOURCE_TIME,
+                              "ROLLBACK",
+                              "Rollback GmbH")))));
+    } finally {
+      jdbcTemplate.execute(
+          "DROP TRIGGER IF EXISTS reject_operations_outbox_insert ON operations_outbox_events");
+      jdbcTemplate.execute("DROP FUNCTION IF EXISTS reject_operations_outbox_insert()");
+    }
+
+    assertEquals(0, springDataBusinessPartnerRepository.count());
+    assertEquals(0, springDataSourceMappingRepository.count());
+    assertEquals(0, springDataReceiptRepository.count());
+    assertEquals(
+        0L,
+        jdbcTemplate.queryForObject("SELECT count(*) FROM operations_outbox_events", Long.class));
+    assertEquals(
+        0L,
+        jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM operations_event_stream_versions", Long.class));
   }
 
   @Test
@@ -152,6 +227,13 @@ class BusinessPartnerImportPersistenceIT {
     assertEquals(partnerBefore.getVersion(), partnerAfter.getVersion());
     assertEquals(FIRST_IMPORT_TIME, mappingAfter.getUpdatedAt());
     assertEquals(FIRST_IMPORT_TIME, partnerAfter.getUpdatedAt());
+    assertEquals(
+        1L,
+        jdbcTemplate.queryForObject("SELECT count(*) FROM operations_outbox_events", Long.class));
+    assertEquals(
+        1L,
+        jdbcTemplate.queryForObject(
+            "SELECT max(last_version) FROM operations_event_stream_versions", Long.class));
   }
 
   @Test

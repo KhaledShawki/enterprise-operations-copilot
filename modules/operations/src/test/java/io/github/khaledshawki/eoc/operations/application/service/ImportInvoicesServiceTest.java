@@ -74,6 +74,7 @@ class ImportInvoicesServiceTest {
   private InMemoryBusinessPartnerRepository businessPartnerRepository;
   private InMemoryBusinessPartnerSourceMappingRepository businessPartnerSourceMappingRepository;
   private DirectInvoiceImportUnitOfWork unitOfWork;
+  private RecordingOperationsIntegrationEventOutbox eventOutbox;
   private ImportInvoicesService service;
 
   @BeforeEach
@@ -84,6 +85,7 @@ class ImportInvoicesServiceTest {
     businessPartnerRepository = new InMemoryBusinessPartnerRepository();
     businessPartnerSourceMappingRepository = new InMemoryBusinessPartnerSourceMappingRepository();
     unitOfWork = new DirectInvoiceImportUnitOfWork();
+    eventOutbox = new RecordingOperationsIntegrationEventOutbox();
     service =
         new ImportInvoicesService(
             invoiceRepository,
@@ -92,6 +94,7 @@ class ImportInvoicesServiceTest {
             businessPartnerRepository,
             businessPartnerSourceMappingRepository,
             unitOfWork,
+            eventOutbox,
             Clock.fixed(NOW, ZoneOffset.UTC));
   }
 
@@ -122,6 +125,9 @@ class ImportInvoicesServiceTest {
     assertEquals(Money.of("10.00", CurrencyCode.of("EUR")), invoice.paidAmount());
     assertEquals(invoice.id(), mapping.invoiceId());
     assertEquals(InvoiceImportFingerprint.record(record), mapping.payloadFingerprint());
+    assertEquals(1, eventOutbox.events.size());
+    assertEquals("operations.invoice.synchronized.v1", eventOutbox.events.getFirst().eventType());
+    assertEquals(1, eventOutbox.events.getFirst().aggregateVersion());
   }
 
   @Test
@@ -165,6 +171,8 @@ class ImportInvoicesServiceTest {
     assertNotSame(originalMapping, updatedMapping);
     assertEquals(new SourceRecordVersion("v1"), originalMapping.sourceVersion());
     assertEquals(firstCustomer.id(), originalInvoice.customerId());
+    assertEquals(2, eventOutbox.events.size());
+    assertEquals(2, eventOutbox.events.getLast().aggregateVersion());
   }
 
   @Test
@@ -192,6 +200,7 @@ class ImportInvoicesServiceTest {
     assertEquals(invoiceSaves, invoiceRepository.saveCount);
     assertEquals(mappingSaves, sourceMappingRepository.saveCount);
     assertEquals(Money.of("100.00", CurrencyCode.of("EUR")), originalInvoice().originalAmount());
+    assertEquals(1, eventOutbox.events.size());
   }
 
   @Test
@@ -212,6 +221,7 @@ class ImportInvoicesServiceTest {
     assertEquals(mappingSaves, sourceMappingRepository.saveCount);
     assertEquals(1, receiptRepository.saveCount);
     assertEquals(2, unitOfWork.executionCount);
+    assertEquals(1, eventOutbox.events.size());
   }
 
   @Test

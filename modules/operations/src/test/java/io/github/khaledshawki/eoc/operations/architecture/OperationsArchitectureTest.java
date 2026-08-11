@@ -45,6 +45,7 @@ class OperationsArchitectureTest {
             "org.hibernate..",
             "org.apache.kafka..",
             "com.fasterxml.jackson..",
+            "tools.jackson..",
             "io.micrometer..")
         .because("the Operations module must remain framework and transport independent")
         .check(OPERATIONS_CLASSES);

@@ -2,6 +2,8 @@ package io.github.khaledshawki.eoc.operations.application.service;
 
 import io.github.khaledshawki.eoc.operations.application.exception.BusinessPartnerSourceMappingCorruptedException;
 import io.github.khaledshawki.eoc.operations.application.exception.ImportPageAcceptanceConflictException;
+import io.github.khaledshawki.eoc.operations.application.model.event.OperationsIntegrationEventFactory;
+import io.github.khaledshawki.eoc.operations.application.model.event.SourceRecordEvidence;
 import io.github.khaledshawki.eoc.operations.application.model.importing.BusinessPartnerImportReceipt;
 import io.github.khaledshawki.eoc.operations.application.port.in.BusinessPartnerImportRecord;
 import io.github.khaledshawki.eoc.operations.application.port.in.BusinessPartnerImportResult;
@@ -10,6 +12,7 @@ import io.github.khaledshawki.eoc.operations.application.port.in.ImportBusinessP
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerImportReceiptRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerSourceMappingRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.OperationsIntegrationEventOutbox;
 import io.github.khaledshawki.eoc.operations.domain.model.BusinessPartner;
 import io.github.khaledshawki.eoc.operations.domain.model.BusinessPartnerSourceMapping;
 import io.github.khaledshawki.eoc.operations.domain.model.OperationsTenantId;
@@ -20,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Objects;
 import java.util.Optional;
@@ -29,12 +33,14 @@ public final class ImportBusinessPartnersService implements ImportBusinessPartne
   private final BusinessPartnerRepository businessPartnerRepository;
   private final BusinessPartnerSourceMappingRepository sourceMappingRepository;
   private final BusinessPartnerImportReceiptRepository importReceiptRepository;
+  private final OperationsIntegrationEventOutbox eventOutbox;
   private final Clock clock;
 
   public ImportBusinessPartnersService(
       BusinessPartnerRepository businessPartnerRepository,
       BusinessPartnerSourceMappingRepository sourceMappingRepository,
       BusinessPartnerImportReceiptRepository importReceiptRepository,
+      OperationsIntegrationEventOutbox eventOutbox,
       Clock clock) {
     this.businessPartnerRepository =
         Objects.requireNonNull(
@@ -43,6 +49,8 @@ public final class ImportBusinessPartnersService implements ImportBusinessPartne
         Objects.requireNonNull(sourceMappingRepository, "Source mapping repository cannot be null");
     this.importReceiptRepository =
         Objects.requireNonNull(importReceiptRepository, "Import receipt repository cannot be null");
+    this.eventOutbox =
+        Objects.requireNonNull(eventOutbox, "Operations event outbox cannot be null");
     this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
   }
 
@@ -64,13 +72,13 @@ public final class ImportBusinessPartnersService implements ImportBusinessPartne
       return receipt.result();
     }
 
+    Instant acceptedAt = clock.instant();
     ImportCounters counters = new ImportCounters();
     for (BusinessPartnerImportRecord record : command.records()) {
-      importRecord(tenantId, sourceSystemId, record, counters);
+      importRecord(tenantId, sourceSystemId, record, acceptedAt, counters);
     }
 
-    BusinessPartnerImportResult result =
-        counters.toResult(command.pageAcceptanceId(), clock.instant());
+    BusinessPartnerImportResult result = counters.toResult(command.pageAcceptanceId(), acceptedAt);
     return importReceiptRepository
         .save(
             tenantId,
@@ -114,6 +122,7 @@ public final class ImportBusinessPartnersService implements ImportBusinessPartne
       OperationsTenantId tenantId,
       SourceSystemId sourceSystemId,
       BusinessPartnerImportRecord record,
+      Instant acceptedAt,
       ImportCounters counters) {
     Optional<BusinessPartnerSourceMapping> existingMapping =
         sourceMappingRepository.findBySourceIdentity(
@@ -122,14 +131,16 @@ public final class ImportBusinessPartnersService implements ImportBusinessPartne
       BusinessPartner businessPartner =
           businessPartnerRepository.save(
               BusinessPartner.importCustomer(tenantId, record.profile()));
-      sourceMappingRepository.save(
-          BusinessPartnerSourceMapping.create(
-              tenantId,
-              sourceSystemId,
-              record.sourceIdentity(),
-              businessPartner.id(),
-              record.sourceVersion(),
-              record.sourceModifiedAt()));
+      BusinessPartnerSourceMapping sourceMapping =
+          sourceMappingRepository.save(
+              BusinessPartnerSourceMapping.create(
+                  tenantId,
+                  sourceSystemId,
+                  record.sourceIdentity(),
+                  businessPartner.id(),
+                  record.sourceVersion(),
+                  record.sourceModifiedAt()));
+      appendSynchronizedEvent(businessPartner, sourceMapping, acceptedAt);
       counters.created++;
       return;
     }
@@ -147,11 +158,28 @@ public final class ImportBusinessPartnersService implements ImportBusinessPartne
                 .orElseThrow(
                     () -> new BusinessPartnerSourceMappingCorruptedException(sourceMapping));
         businessPartner.synchronizeCustomer(record.profile());
-        businessPartnerRepository.save(businessPartner);
-        sourceMappingRepository.save(sourceMapping);
+        BusinessPartner persistedBusinessPartner = businessPartnerRepository.save(businessPartner);
+        BusinessPartnerSourceMapping persistedSourceMapping =
+            sourceMappingRepository.save(sourceMapping);
+        appendSynchronizedEvent(persistedBusinessPartner, persistedSourceMapping, acceptedAt);
         counters.updated++;
       }
     }
+  }
+
+  private void appendSynchronizedEvent(
+      BusinessPartner businessPartner,
+      BusinessPartnerSourceMapping sourceMapping,
+      Instant acceptedAt) {
+    eventOutbox.append(
+        OperationsIntegrationEventFactory.pendingBusinessPartnerSynchronized(
+            businessPartner,
+            SourceRecordEvidence.from(
+                sourceMapping.sourceSystemId(),
+                sourceMapping.sourceIdentity(),
+                sourceMapping.sourceVersion(),
+                sourceMapping.sourceModifiedAt()),
+            acceptedAt));
   }
 
   private static final class ImportCounters {

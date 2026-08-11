@@ -9,6 +9,7 @@ import io.github.khaledshawki.eoc.operations.application.exception.ReceivableInv
 import io.github.khaledshawki.eoc.operations.application.exception.ReceivableSettlementStateCorruptedException;
 import io.github.khaledshawki.eoc.operations.application.model.authorization.OperationsActor;
 import io.github.khaledshawki.eoc.operations.application.model.authorization.OperationsPermission;
+import io.github.khaledshawki.eoc.operations.application.model.event.OperationsIntegrationEventFactory;
 import io.github.khaledshawki.eoc.operations.application.model.settlement.ReceivableAllocationResult;
 import io.github.khaledshawki.eoc.operations.application.port.in.AllocateReceivablePaymentCommand;
 import io.github.khaledshawki.eoc.operations.application.port.in.AllocateReceivablePaymentUseCase;
@@ -16,6 +17,7 @@ import io.github.khaledshawki.eoc.operations.application.port.in.ReverseReceivab
 import io.github.khaledshawki.eoc.operations.application.port.in.ReverseReceivableAllocationUseCase;
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.OperationsAuthorizationPort;
+import io.github.khaledshawki.eoc.operations.application.port.out.OperationsIntegrationEventOutbox;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.ReceivableSettlementMutationUnitOfWork;
 import io.github.khaledshawki.eoc.operations.application.port.out.ReceivableSettlementRepository;
@@ -28,6 +30,7 @@ import io.github.khaledshawki.eoc.operations.domain.model.PaymentId;
 import io.github.khaledshawki.eoc.operations.domain.model.ReceivableAllocation;
 import io.github.khaledshawki.eoc.operations.domain.model.ReceivableAllocationId;
 import io.github.khaledshawki.eoc.operations.domain.model.ReceivableSettlement;
+import java.time.Clock;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -43,13 +46,17 @@ public final class ReceivableSettlementService
   private final ReceivableSettlementRepository settlementRepository;
   private final ReceivableSettlementMutationUnitOfWork unitOfWork;
   private final OperationsAuthorizationPort authorizationPort;
+  private final OperationsIntegrationEventOutbox eventOutbox;
+  private final Clock clock;
 
   public ReceivableSettlementService(
       PaymentRepository paymentRepository,
       InvoiceRepository invoiceRepository,
       ReceivableSettlementRepository settlementRepository,
       ReceivableSettlementMutationUnitOfWork unitOfWork,
-      OperationsAuthorizationPort authorizationPort) {
+      OperationsAuthorizationPort authorizationPort,
+      OperationsIntegrationEventOutbox eventOutbox,
+      Clock clock) {
     this.paymentRepository =
         Objects.requireNonNull(paymentRepository, "Payment repository cannot be null");
     this.invoiceRepository =
@@ -62,6 +69,9 @@ public final class ReceivableSettlementService
             unitOfWork, "Receivable settlement mutation unit of work cannot be null");
     this.authorizationPort =
         Objects.requireNonNull(authorizationPort, "Operations authorization port cannot be null");
+    this.eventOutbox =
+        Objects.requireNonNull(eventOutbox, "Operations event outbox cannot be null");
+    this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
   }
 
   @Override
@@ -135,11 +145,16 @@ public final class ReceivableSettlementService
     validateGlobalInvoiceCapacity(tenantId, invoice, amount);
     ReceivableAllocation allocation = settlement.allocate(allocationId, payment, invoice, amount);
     ReceivableSettlement persisted = persistAndValidate(settlement, allocation);
-    return ReceivableAllocationResult.from(
-        persisted,
-        findAllocation(persisted, allocationId)
-            .orElseThrow(
-                () -> corrupted("Persisted receivable settlement omitted the new allocation")));
+    ReceivableAllocationResult result =
+        ReceivableAllocationResult.from(
+            persisted,
+            findAllocation(persisted, allocationId)
+                .orElseThrow(
+                    () -> corrupted("Persisted receivable settlement omitted the new allocation")));
+    eventOutbox.append(
+        OperationsIntegrationEventFactory.pendingReceivableAllocationApplied(
+            tenantId, result, clock.instant()));
+    return result;
   }
 
   private ReceivableAllocationResult resolveAllocationReplay(
@@ -186,12 +201,18 @@ public final class ReceivableSettlementService
 
     ReceivableAllocation reversed = settlement.reverseAllocation(allocationId);
     ReceivableSettlement persisted = persistAndValidate(settlement, reversed);
-    return ReceivableAllocationResult.from(
-        persisted,
-        findAllocation(persisted, allocationId)
-            .orElseThrow(
-                () ->
-                    corrupted("Persisted receivable settlement omitted the reversed allocation")));
+    ReceivableAllocationResult result =
+        ReceivableAllocationResult.from(
+            persisted,
+            findAllocation(persisted, allocationId)
+                .orElseThrow(
+                    () ->
+                        corrupted(
+                            "Persisted receivable settlement omitted the reversed allocation")));
+    eventOutbox.append(
+        OperationsIntegrationEventFactory.pendingReceivableAllocationReversed(
+            tenantId, result, clock.instant()));
+    return result;
   }
 
   private void validateGlobalInvoiceCapacity(

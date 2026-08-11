@@ -19,6 +19,7 @@ import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceQueryRe
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceSourceMappingRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.OperationsAuthorizationPort;
+import io.github.khaledshawki.eoc.operations.application.port.out.OperationsIntegrationEventOutbox;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentImportReceiptRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentImportUnitOfWork;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentQueryRepository;
@@ -53,11 +54,16 @@ public class OperationsConfiguration {
       BusinessPartnerRepository businessPartnerRepository,
       BusinessPartnerSourceMappingRepository sourceMappingRepository,
       BusinessPartnerImportReceiptRepository importReceiptRepository,
+      OperationsIntegrationEventOutbox eventOutbox,
       Clock clock,
       PlatformTransactionManager transactionManager) {
     ImportBusinessPartnersUseCase delegate =
         new ImportBusinessPartnersService(
-            businessPartnerRepository, sourceMappingRepository, importReceiptRepository, clock);
+            businessPartnerRepository,
+            sourceMappingRepository,
+            importReceiptRepository,
+            eventOutbox,
+            clock);
     TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
     return command -> {
       BusinessPartnerImportResult result =
@@ -74,6 +80,7 @@ public class OperationsConfiguration {
       BusinessPartnerRepository businessPartnerRepository,
       BusinessPartnerSourceMappingRepository businessPartnerSourceMappingRepository,
       InvoiceImportUnitOfWork unitOfWork,
+      OperationsIntegrationEventOutbox eventOutbox,
       Clock clock) {
     return new ImportInvoicesService(
         invoiceRepository,
@@ -82,6 +89,7 @@ public class OperationsConfiguration {
         businessPartnerRepository,
         businessPartnerSourceMappingRepository,
         unitOfWork,
+        eventOutbox,
         clock);
   }
 
@@ -93,6 +101,7 @@ public class OperationsConfiguration {
       BusinessPartnerRepository businessPartnerRepository,
       BusinessPartnerSourceMappingRepository businessPartnerSourceMappingRepository,
       PaymentImportUnitOfWork unitOfWork,
+      OperationsIntegrationEventOutbox eventOutbox,
       Clock clock) {
     return new ImportPaymentsService(
         paymentRepository,
@@ -101,6 +110,7 @@ public class OperationsConfiguration {
         businessPartnerRepository,
         businessPartnerSourceMappingRepository,
         unitOfWork,
+        eventOutbox,
         clock);
   }
 
@@ -110,13 +120,17 @@ public class OperationsConfiguration {
       InvoiceRepository invoiceRepository,
       ReceivableSettlementRepository settlementRepository,
       ReceivableSettlementMutationUnitOfWork unitOfWork,
-      OperationsAuthorizationPort operationsAuthorizationPort) {
+      OperationsAuthorizationPort operationsAuthorizationPort,
+      OperationsIntegrationEventOutbox eventOutbox,
+      Clock clock) {
     return new ReceivableSettlementService(
         paymentRepository,
         invoiceRepository,
         settlementRepository,
         unitOfWork,
-        operationsAuthorizationPort);
+        operationsAuthorizationPort,
+        eventOutbox,
+        clock);
   }
 
   @Bean

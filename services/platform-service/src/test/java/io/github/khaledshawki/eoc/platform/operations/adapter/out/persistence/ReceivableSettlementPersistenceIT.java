@@ -77,6 +77,8 @@ class ReceivableSettlementPersistenceIT {
 
   @BeforeEach
   void setUp() {
+    jdbcTemplate.update("DELETE FROM operations_outbox_events");
+    jdbcTemplate.update("DELETE FROM operations_event_stream_versions");
     jdbcTemplate.update("DELETE FROM operations_receivable_allocations");
     jdbcTemplate.update("DELETE FROM operations_receivable_settlements");
     jdbcTemplate.update("DELETE FROM operations_receivable_settlement_locks");
@@ -118,6 +120,8 @@ class ReceivableSettlementPersistenceIT {
                 OperationsTenantId.of(TENANT_ID), ReceivableAllocationId.of(allocationId))
             .orElseThrow()
             .id());
+    assertEquals(1L, eventCount("operations.receivable-allocation.applied.v1"));
+    assertEquals(1L, rowCount("operations_event_stream_versions"));
   }
 
   @Test
@@ -147,6 +151,13 @@ class ReceivableSettlementPersistenceIT {
     assertEquals(first, replay);
     assertEquals(versionAfterFirst, versionAfterReplay);
     assertEquals(1L, rowCount("operations_receivable_allocations"));
+    assertEquals(1L, eventCount("operations.receivable-allocation.applied.v1"));
+    assertEquals(1L, eventCount("operations.receivable-allocation.reversed.v1"));
+    assertEquals(
+        List.of(1L, 2L),
+        jdbcTemplate.queryForList(
+            "SELECT aggregate_version FROM operations_outbox_events ORDER BY aggregate_version",
+            Long.class));
     assertEquals(
         Money.zero(EUR),
         settlementRepository.activeAllocatedAmountForInvoice(
@@ -564,6 +575,15 @@ class ReceivableSettlementPersistenceIT {
 
   private long rowCount(String tableName) {
     Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + tableName, Long.class);
+    return count == null ? 0L : count;
+  }
+
+  private long eventCount(String eventType) {
+    Long count =
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM operations_outbox_events WHERE event_type = ?",
+            Long.class,
+            eventType);
     return count == null ? 0L : count;
   }
 

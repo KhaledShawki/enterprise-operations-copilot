@@ -37,7 +37,10 @@ import io.github.khaledshawki.eoc.operations.domain.model.ReceivableAllocationId
 import io.github.khaledshawki.eoc.operations.domain.model.ReceivableAllocationState;
 import io.github.khaledshawki.eoc.operations.domain.model.ReceivableSettlement;
 import io.github.khaledshawki.eoc.operations.domain.model.ReceivableSettlementId;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,6 +72,7 @@ class ReceivableSettlementServiceTest {
   private static final OperationsActor ACTOR = new OperationsActor("issuer", "subject");
   private static final CurrencyCode EUR = CurrencyCode.of("EUR");
   private static final CurrencyCode USD = CurrencyCode.of("USD");
+  private static final Instant NOW = Instant.parse("2026-08-11T12:00:00Z");
 
   @Test
   void shouldCreateSettlementAndAllocateInsideScopedUnitOfWork() {
@@ -95,6 +99,10 @@ class ReceivableSettlementServiceTest {
     assertEquals(ALLOCATION_ID, fixture.unitOfWork.allocationId.get());
     assertEquals(1, fixture.settlements.saveCalls.get());
     assertTrue(fixture.unitOfWork.workWasInsideBoundary.get());
+    assertEquals(1, fixture.eventOutbox.events.size());
+    assertEquals(
+        "operations.receivable-allocation.applied.v1",
+        fixture.eventOutbox.events.getFirst().eventType());
   }
 
   @Test
@@ -128,6 +136,7 @@ class ReceivableSettlementServiceTest {
     assertEquals(0, fixture.invoices.findCalls.get());
     assertEquals(0, fixture.settlements.capacityCalls.get());
     assertEquals(0, fixture.settlements.saveCalls.get());
+    assertTrue(fixture.eventOutbox.events.isEmpty());
   }
 
   @Test
@@ -414,6 +423,10 @@ class ReceivableSettlementServiceTest {
     assertEquals(1, fixture.settlements.saveCalls.get());
     assertEquals(1, settlement.allocations().size());
     assertFalse(settlement.allocations().get(0).active());
+    assertEquals(1, fixture.eventOutbox.events.size());
+    assertEquals(
+        "operations.receivable-allocation.reversed.v1",
+        fixture.eventOutbox.events.getFirst().eventType());
   }
 
   @Test
@@ -430,6 +443,7 @@ class ReceivableSettlementServiceTest {
 
     assertEquals(ReceivableAllocationState.REVERSED, result.state());
     assertEquals(0, fixture.settlements.saveCalls.get());
+    assertTrue(fixture.eventOutbox.events.isEmpty());
   }
 
   @Test
@@ -621,6 +635,8 @@ class ReceivableSettlementServiceTest {
     private final FakeInvoiceRepository invoices;
     private final FakeSettlementRepository settlements = new FakeSettlementRepository();
     private final FakeUnitOfWork unitOfWork = new FakeUnitOfWork();
+    private final RecordingOperationsIntegrationEventOutbox eventOutbox =
+        new RecordingOperationsIntegrationEventOutbox();
     private OperationsAuthorizationPort authorization = (actor, tenantId, permission) -> true;
 
     private Fixture(Payment payment, Invoice invoice) {
@@ -630,7 +646,13 @@ class ReceivableSettlementServiceTest {
 
     private ReceivableSettlementService service() {
       return new ReceivableSettlementService(
-          payments, invoices, settlements, unitOfWork, authorization);
+          payments,
+          invoices,
+          settlements,
+          unitOfWork,
+          authorization,
+          eventOutbox,
+          Clock.fixed(NOW, ZoneOffset.UTC));
     }
   }
 

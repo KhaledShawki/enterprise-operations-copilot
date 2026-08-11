@@ -71,6 +71,7 @@ class ImportPaymentsServiceTest {
   private InMemoryBusinessPartnerRepository businessPartnerRepository;
   private InMemoryBusinessPartnerSourceMappingRepository businessPartnerSourceMappingRepository;
   private DirectPaymentImportUnitOfWork unitOfWork;
+  private RecordingOperationsIntegrationEventOutbox eventOutbox;
   private ImportPaymentsService service;
 
   @BeforeEach
@@ -81,6 +82,7 @@ class ImportPaymentsServiceTest {
     businessPartnerRepository = new InMemoryBusinessPartnerRepository();
     businessPartnerSourceMappingRepository = new InMemoryBusinessPartnerSourceMappingRepository();
     unitOfWork = new DirectPaymentImportUnitOfWork();
+    eventOutbox = new RecordingOperationsIntegrationEventOutbox();
     service =
         new ImportPaymentsService(
             paymentRepository,
@@ -89,6 +91,7 @@ class ImportPaymentsServiceTest {
             businessPartnerRepository,
             businessPartnerSourceMappingRepository,
             unitOfWork,
+            eventOutbox,
             Clock.fixed(NOW, ZoneOffset.UTC));
   }
 
@@ -120,6 +123,9 @@ class ImportPaymentsServiceTest {
     assertEquals(PaymentStatus.RECORDED, payment.status());
     assertEquals(payment.id(), mapping.paymentId());
     assertEquals(PaymentImportFingerprint.record(record), mapping.payloadFingerprint());
+    assertEquals(1, eventOutbox.events.size());
+    assertEquals("operations.payment.synchronized.v1", eventOutbox.events.getFirst().eventType());
+    assertEquals(1, eventOutbox.events.getFirst().aggregateVersion());
   }
 
   @Test
@@ -159,6 +165,8 @@ class ImportPaymentsServiceTest {
     assertEquals(new SourceRecordVersion("v1"), originalMapping.sourceVersion());
     assertEquals(firstCustomer.id(), originalPayment.customerId());
     assertEquals(PaymentStatus.RECORDED, originalPayment.status());
+    assertEquals(2, eventOutbox.events.size());
+    assertEquals(2, eventOutbox.events.getLast().aggregateVersion());
 
     PaymentImportRecord reopening =
         new PaymentImportRecord(
@@ -176,6 +184,8 @@ class ImportPaymentsServiceTest {
     assertEquals(PaymentStatus.RECORDED, onlyPayment().status());
     assertEquals(Money.of("125.00", CurrencyCode.of("EUR")), onlyPayment().effectiveAmount());
     assertEquals(new SourceRecordVersion("v3"), onlyMapping().sourceVersion());
+    assertEquals(3, eventOutbox.events.size());
+    assertEquals(3, eventOutbox.events.getLast().aggregateVersion());
   }
 
   @Test
@@ -202,6 +212,7 @@ class ImportPaymentsServiceTest {
     assertEquals(mappingSaves, sourceMappingRepository.saveCount);
     assertEquals(Money.of("100.00", CurrencyCode.of("EUR")), onlyPayment().amount());
     assertEquals(PaymentStatus.RECORDED, onlyPayment().status());
+    assertEquals(1, eventOutbox.events.size());
   }
 
   @Test
@@ -222,6 +233,7 @@ class ImportPaymentsServiceTest {
     assertEquals(mappingSaves, sourceMappingRepository.saveCount);
     assertEquals(1, receiptRepository.saveCount);
     assertEquals(2, unitOfWork.executionCount);
+    assertEquals(1, eventOutbox.events.size());
   }
 
   @Test
@@ -607,6 +619,7 @@ class ImportPaymentsServiceTest {
                 businessPartnerRepository,
                 businessPartnerSourceMappingRepository,
                 unitOfWork,
+                eventOutbox,
                 Clock.systemUTC()));
     assertThrows(NullPointerException.class, () -> service.importPage(null));
   }

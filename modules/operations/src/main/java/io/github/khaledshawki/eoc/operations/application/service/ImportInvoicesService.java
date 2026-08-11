@@ -5,6 +5,8 @@ import io.github.khaledshawki.eoc.operations.application.exception.ImportPageAcc
 import io.github.khaledshawki.eoc.operations.application.exception.InvoiceCustomerRoleRequiredException;
 import io.github.khaledshawki.eoc.operations.application.exception.InvoiceCustomerSourceMappingNotFoundException;
 import io.github.khaledshawki.eoc.operations.application.exception.InvoiceSourceMappingCorruptedException;
+import io.github.khaledshawki.eoc.operations.application.model.event.OperationsIntegrationEventFactory;
+import io.github.khaledshawki.eoc.operations.application.model.event.SourceRecordEvidence;
 import io.github.khaledshawki.eoc.operations.application.model.importing.InvoiceImportFingerprint;
 import io.github.khaledshawki.eoc.operations.application.model.importing.InvoiceImportReceipt;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportInvoicesCommand;
@@ -17,6 +19,7 @@ import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceImportR
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceImportUnitOfWork;
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.InvoiceSourceMappingRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.OperationsIntegrationEventOutbox;
 import io.github.khaledshawki.eoc.operations.domain.model.BusinessPartner;
 import io.github.khaledshawki.eoc.operations.domain.model.BusinessPartnerRole;
 import io.github.khaledshawki.eoc.operations.domain.model.BusinessPartnerSourceMapping;
@@ -29,6 +32,7 @@ import io.github.khaledshawki.eoc.operations.domain.model.SourceRecordFingerprin
 import io.github.khaledshawki.eoc.operations.domain.model.SourceRecordIdentity;
 import io.github.khaledshawki.eoc.operations.domain.model.SourceSystemId;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -42,6 +46,7 @@ public final class ImportInvoicesService implements ImportInvoicesUseCase {
   private final BusinessPartnerRepository businessPartnerRepository;
   private final BusinessPartnerSourceMappingRepository businessPartnerSourceMappingRepository;
   private final InvoiceImportUnitOfWork unitOfWork;
+  private final OperationsIntegrationEventOutbox eventOutbox;
   private final Clock clock;
 
   public ImportInvoicesService(
@@ -51,6 +56,7 @@ public final class ImportInvoicesService implements ImportInvoicesUseCase {
       BusinessPartnerRepository businessPartnerRepository,
       BusinessPartnerSourceMappingRepository businessPartnerSourceMappingRepository,
       InvoiceImportUnitOfWork unitOfWork,
+      OperationsIntegrationEventOutbox eventOutbox,
       Clock clock) {
     this.invoiceRepository =
         Objects.requireNonNull(invoiceRepository, "Invoice repository cannot be null");
@@ -69,6 +75,8 @@ public final class ImportInvoicesService implements ImportInvoicesUseCase {
             "Business partner source mapping repository cannot be null");
     this.unitOfWork =
         Objects.requireNonNull(unitOfWork, "Invoice import unit of work cannot be null");
+    this.eventOutbox =
+        Objects.requireNonNull(eventOutbox, "Operations event outbox cannot be null");
     this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
   }
 
@@ -95,10 +103,10 @@ public final class ImportInvoicesService implements ImportInvoicesUseCase {
     }
 
     ImportPlan plan = preflight(tenantId, sourceSystemId, command);
-    plan.persist(invoiceRepository, sourceMappingRepository);
+    Instant acceptedAt = clock.instant();
+    plan.persist(invoiceRepository, sourceMappingRepository, eventOutbox, acceptedAt);
 
-    InvoiceImportResult result =
-        plan.counters().toResult(command.pageAcceptanceId(), clock.instant());
+    InvoiceImportResult result = plan.counters().toResult(command.pageAcceptanceId(), acceptedAt);
     return importReceiptRepository
         .save(
             tenantId,
@@ -273,12 +281,24 @@ public final class ImportInvoicesService implements ImportInvoicesUseCase {
 
     void persist(
         InvoiceRepository invoiceRepository,
-        InvoiceSourceMappingRepository sourceMappingRepository) {
+        InvoiceSourceMappingRepository sourceMappingRepository,
+        OperationsIntegrationEventOutbox eventOutbox,
+        Instant acceptedAt) {
       if (!dirty) {
         return;
       }
-      invoiceRepository.save(Objects.requireNonNull(invoice));
-      sourceMappingRepository.save(Objects.requireNonNull(mapping));
+      Invoice persistedInvoice = invoiceRepository.save(Objects.requireNonNull(invoice));
+      InvoiceSourceMapping persistedMapping =
+          sourceMappingRepository.save(Objects.requireNonNull(mapping));
+      eventOutbox.append(
+          OperationsIntegrationEventFactory.pendingInvoiceSynchronized(
+              persistedInvoice,
+              SourceRecordEvidence.from(
+                  persistedMapping.sourceSystemId(),
+                  persistedMapping.sourceIdentity(),
+                  persistedMapping.sourceVersion(),
+                  persistedMapping.sourceModifiedAt()),
+              acceptedAt));
     }
   }
 
@@ -292,8 +312,15 @@ public final class ImportInvoicesService implements ImportInvoicesUseCase {
 
     void persist(
         InvoiceRepository invoiceRepository,
-        InvoiceSourceMappingRepository sourceMappingRepository) {
-      states.values().forEach(state -> state.persist(invoiceRepository, sourceMappingRepository));
+        InvoiceSourceMappingRepository sourceMappingRepository,
+        OperationsIntegrationEventOutbox eventOutbox,
+        Instant acceptedAt) {
+      states
+          .values()
+          .forEach(
+              state ->
+                  state.persist(
+                      invoiceRepository, sourceMappingRepository, eventOutbox, acceptedAt));
     }
   }
 

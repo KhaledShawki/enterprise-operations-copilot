@@ -20,12 +20,16 @@ public final class OperationsIntegrationEventFactory {
       BusinessPartner businessPartner,
       SourceRecordEvidence source,
       Instant occurredAt) {
+    return pendingBusinessPartnerSynchronized(businessPartner, source, occurredAt)
+        .materialize(eventId, aggregateVersion);
+  }
+
+  public static PendingOperationsIntegrationEvent pendingBusinessPartnerSynchronized(
+      BusinessPartner businessPartner, SourceRecordEvidence source, Instant occurredAt) {
     Objects.requireNonNull(businessPartner, "Business partner cannot be null");
-    return event(
-        eventId,
+    return pendingEvent(
         OperationsIntegrationEventType.BUSINESS_PARTNER_SYNCHRONIZED,
         businessPartner.tenantId(),
-        aggregateVersion,
         occurredAt,
         new BusinessPartnerSynchronizedPayload(
             businessPartner.id().value(),
@@ -41,12 +45,16 @@ public final class OperationsIntegrationEventFactory {
       Invoice invoice,
       SourceRecordEvidence source,
       Instant occurredAt) {
+    return pendingInvoiceSynchronized(invoice, source, occurredAt)
+        .materialize(eventId, aggregateVersion);
+  }
+
+  public static PendingOperationsIntegrationEvent pendingInvoiceSynchronized(
+      Invoice invoice, SourceRecordEvidence source, Instant occurredAt) {
     Objects.requireNonNull(invoice, "Invoice cannot be null");
-    return event(
-        eventId,
+    return pendingEvent(
         OperationsIntegrationEventType.INVOICE_SYNCHRONIZED,
         invoice.tenantId(),
-        aggregateVersion,
         occurredAt,
         new InvoiceSynchronizedPayload(
             invoice.id().value(),
@@ -67,12 +75,16 @@ public final class OperationsIntegrationEventFactory {
       Payment payment,
       SourceRecordEvidence source,
       Instant occurredAt) {
+    return pendingPaymentSynchronized(payment, source, occurredAt)
+        .materialize(eventId, aggregateVersion);
+  }
+
+  public static PendingOperationsIntegrationEvent pendingPaymentSynchronized(
+      Payment payment, SourceRecordEvidence source, Instant occurredAt) {
     Objects.requireNonNull(payment, "Payment cannot be null");
-    return event(
-        eventId,
+    return pendingEvent(
         OperationsIntegrationEventType.PAYMENT_SYNCHRONIZED,
         payment.tenantId(),
-        aggregateVersion,
         occurredAt,
         new PaymentSynchronizedPayload(
             payment.id().value(),
@@ -90,12 +102,16 @@ public final class OperationsIntegrationEventFactory {
       OperationsTenantId tenantId,
       ReceivableAllocationResult allocation,
       Instant occurredAt) {
+    return pendingReceivableAllocationApplied(tenantId, allocation, occurredAt)
+        .materialize(eventId, aggregateVersion);
+  }
+
+  public static PendingOperationsIntegrationEvent pendingReceivableAllocationApplied(
+      OperationsTenantId tenantId, ReceivableAllocationResult allocation, Instant occurredAt) {
     requireState(allocation, ReceivableAllocationState.ACTIVE);
-    return event(
-        eventId,
+    return pendingEvent(
         OperationsIntegrationEventType.RECEIVABLE_ALLOCATION_APPLIED,
         tenantId,
-        aggregateVersion,
         occurredAt,
         new ReceivableAllocationAppliedPayload(
             allocation.settlementId().value(),
@@ -111,12 +127,16 @@ public final class OperationsIntegrationEventFactory {
       OperationsTenantId tenantId,
       ReceivableAllocationResult allocation,
       Instant occurredAt) {
+    return pendingReceivableAllocationReversed(tenantId, allocation, occurredAt)
+        .materialize(eventId, aggregateVersion);
+  }
+
+  public static PendingOperationsIntegrationEvent pendingReceivableAllocationReversed(
+      OperationsTenantId tenantId, ReceivableAllocationResult allocation, Instant occurredAt) {
     requireState(allocation, ReceivableAllocationState.REVERSED);
-    return event(
-        eventId,
+    return pendingEvent(
         OperationsIntegrationEventType.RECEIVABLE_ALLOCATION_REVERSED,
         tenantId,
-        aggregateVersion,
         occurredAt,
         new ReceivableAllocationReversedPayload(
             allocation.settlementId().value(),
@@ -126,23 +146,13 @@ public final class OperationsIntegrationEventFactory {
             OperationsMoneyPayload.from(allocation.amount())));
   }
 
-  private static OperationsIntegrationEvent event(
-      UUID eventId,
+  private static PendingOperationsIntegrationEvent pendingEvent(
       OperationsIntegrationEventType type,
       OperationsTenantId tenantId,
-      long aggregateVersion,
       Instant occurredAt,
       OperationsIntegrationEventPayload payload) {
     Objects.requireNonNull(tenantId, "Operations tenant id cannot be null");
-    return new OperationsIntegrationEvent(
-        eventId,
-        type,
-        tenantId.value(),
-        type.aggregateType(),
-        payload.aggregateId(),
-        aggregateVersion,
-        occurredAt,
-        payload);
+    return new PendingOperationsIntegrationEvent(type, tenantId.value(), occurredAt, payload);
   }
 
   private static void requireState(
