@@ -41,7 +41,7 @@ import org.testcontainers.kafka.KafkaContainer;
     properties = {
       "eoc.connector-events.transport=kafka",
       "eoc.connector-events.kafka.topic=eoc.connector.integration-events.dlt-failure-it",
-      "eoc.connector-events.kafka.max-block-timeout=1s",
+      "eoc.kafka.producer.max-block-timeout=1s",
       "eoc.connector-events.kafka.consumer.enabled=true",
       "eoc.connector-events.kafka.consumer.group-id=eoc-connector-dlt-failure-it",
       "eoc.connector-events.kafka.consumer.dlt-topic=eoc.connector.integration-events.dlt-failure-it.dlt",

@@ -34,9 +34,10 @@ blocks only later versions of the same aggregate. Every publication outcome is f
 claim owner, and publication-attempt number. Expired claims can be reclaimed; retry is bounded; a
 terminal failure remains an ordering barrier until explicit operational recovery is introduced.
 
-This decision does not introduce a Kafka publisher or scheduled relay. Events remain `PENDING`
-until the transport slice is configured, so deploying this schema cannot discard events through a
-placeholder publisher.
+The outbox remains transport-neutral. A platform runtime may provide a scheduled inbound relay and
+an `OperationsIntegrationEventPublisher` output adapter, but neither Kafka nor scheduling APIs enter
+the Operations module. When no transport relay is enabled, events remain safely `PENDING`; there is
+no placeholder publisher that can discard them.
 
 ## Consequences
 
@@ -51,6 +52,11 @@ placeholder publisher.
   unrelated aggregates continue.
 - Operators will need explicit visibility and recovery for terminal Operations events before the
   transport is considered production complete.
+
+The first runtime adapter publishes these rows to a dedicated Operations Kafka topic after broker
+acknowledgement. It uses bounded waits, claim-lease budget validation, typed contract validation,
+and stable event identity on retry. This is a follow-up implementation of the port defined by this
+decision, not a change to the database atomicity boundary.
 
 ## Rejected alternatives
 

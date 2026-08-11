@@ -88,7 +88,7 @@ class KafkaConnectorDeadLetterReaderTest {
     when(factory.createConsumer()).thenReturn(consumer);
     return new KafkaConnectorDeadLetterReader(
         factory,
-        new ConnectorKafkaProperties(SOURCE_TOPIC, Duration.ofSeconds(10), Duration.ofSeconds(5)),
+        new ConnectorKafkaProperties(SOURCE_TOPIC, Duration.ofSeconds(10)),
         new ConnectorKafkaConsumerProperties(
             true,
             "connector-group",

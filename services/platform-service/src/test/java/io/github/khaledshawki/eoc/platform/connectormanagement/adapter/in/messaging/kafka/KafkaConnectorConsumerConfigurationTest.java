@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.khaledshawki.eoc.platform.connectormanagement.configuration.ConnectorKafkaConsumerProperties;
-import io.github.khaledshawki.eoc.platform.connectormanagement.configuration.ConnectorKafkaProperties;
+import io.github.khaledshawki.eoc.platform.messaging.kafka.PlatformKafkaProducerProperties;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
@@ -32,8 +32,8 @@ class KafkaConnectorConsumerConfigurationTest {
                 kafkaProperties(), consumerProperties(), Duration.ZERO));
   }
 
-  private static ConnectorKafkaProperties kafkaProperties() {
-    return new ConnectorKafkaProperties("events", Duration.ofSeconds(10), Duration.ofSeconds(5));
+  private static PlatformKafkaProducerProperties kafkaProperties() {
+    return new PlatformKafkaProducerProperties(Duration.ofSeconds(5));
   }
 
   private static ConnectorKafkaConsumerProperties consumerProperties() {
