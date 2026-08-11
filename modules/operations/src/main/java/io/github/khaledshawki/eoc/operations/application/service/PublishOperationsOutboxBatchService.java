@@ -60,7 +60,7 @@ public final class PublishOperationsOutboxBatchService
         eventPublisher.publish(event.integrationEvent());
       } catch (OperationsEventPublicationException exception) {
         Instant recordedAt = clock.instant();
-        if (exception.retryable() && event.publicationAttempt() < publicationPolicy.maxAttempts()) {
+        if (exception.retryable() && event.generationAttempt() < publicationPolicy.maxAttempts()) {
           outboxRepository.scheduleRetry(
               new OperationsOutboxPublicationRetry(
                   event.eventId(),
