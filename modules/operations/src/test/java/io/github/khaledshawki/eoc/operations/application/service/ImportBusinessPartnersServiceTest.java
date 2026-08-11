@@ -56,6 +56,7 @@ class ImportBusinessPartnersServiceTest {
   private InMemoryBusinessPartnerRepository businessPartnerRepository;
   private InMemorySourceMappingRepository sourceMappingRepository;
   private InMemoryImportReceiptRepository importReceiptRepository;
+  private RecordingOperationsIntegrationEventOutbox eventOutbox;
   private ImportBusinessPartnersService service;
 
   @BeforeEach
@@ -63,11 +64,13 @@ class ImportBusinessPartnersServiceTest {
     businessPartnerRepository = new InMemoryBusinessPartnerRepository();
     sourceMappingRepository = new InMemorySourceMappingRepository();
     importReceiptRepository = new InMemoryImportReceiptRepository();
+    eventOutbox = new RecordingOperationsIntegrationEventOutbox();
     service =
         new ImportBusinessPartnersService(
             businessPartnerRepository,
             sourceMappingRepository,
             importReceiptRepository,
+            eventOutbox,
             Clock.fixed(NOW, ZoneOffset.UTC));
   }
 
@@ -93,6 +96,10 @@ class ImportBusinessPartnersServiceTest {
     assertEquals(1, businessPartnerRepository.values.size());
     assertEquals(1, sourceMappingRepository.values.size());
     assertEquals(1, importReceiptRepository.values.size());
+    assertEquals(1, eventOutbox.events.size());
+    assertEquals(
+        "operations.business-partner.synchronized.v1", eventOutbox.events.getFirst().eventType());
+    assertEquals(1, eventOutbox.events.getFirst().aggregateVersion());
   }
 
   @Test
@@ -125,6 +132,8 @@ class ImportBusinessPartnersServiceTest {
             .orElseThrow();
     assertEquals("Acme AG", businessPartner.profile().displayName());
     assertEquals(new SourceRecordVersion("v2"), mapping.sourceVersion());
+    assertEquals(2, eventOutbox.events.size());
+    assertEquals(2, eventOutbox.events.getLast().aggregateVersion());
   }
 
   @Test
@@ -149,6 +158,7 @@ class ImportBusinessPartnersServiceTest {
     assertEquals(0, result.acceptedCount());
     BusinessPartner businessPartner = businessPartnerRepository.values.values().iterator().next();
     assertEquals("Current name", businessPartner.profile().displayName());
+    assertEquals(1, eventOutbox.events.size());
   }
 
   @Test
@@ -170,6 +180,7 @@ class ImportBusinessPartnersServiceTest {
     assertEquals(partnerSaveCount, businessPartnerRepository.saveCount);
     assertEquals(mappingSaveCount, sourceMappingRepository.saveCount);
     assertEquals(1, importReceiptRepository.saveCount);
+    assertEquals(1, eventOutbox.events.size());
   }
 
   @Test

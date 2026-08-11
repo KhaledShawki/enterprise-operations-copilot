@@ -60,11 +60,11 @@ The transport key is:
 tenantId:aggregateType:aggregateId
 ```
 
-The future outbox must allocate `aggregateVersion` atomically with the business mutation and enforce
-a unique constraint on tenant, aggregate type, aggregate id, and aggregate version. Its relay may
-scale across tenants and aggregates, but it must publish only the lowest unpublished version for an
-aggregate. A failed head event blocks later versions for that aggregate without blocking unrelated
-aggregates.
+The Operations outbox allocates `aggregateVersion` atomically with the business mutation and
+enforces a unique constraint on tenant, aggregate type, aggregate id, and aggregate version. Its
+relay may scale across tenants and aggregates, but it claims only the lowest unpublished version for
+an aggregate. A failed head event blocks later versions for that aggregate without blocking
+unrelated aggregates.
 
 Kafka delivery remains at least once. A publication retry retains the same `eventId`, aggregate
 version, and immutable content. Consumers must durably deduplicate by `eventId`, reject same-id
@@ -74,8 +74,8 @@ transport evidence, not substitutes for aggregate versions.
 
 ## Transaction boundary
 
-The later outbox slice must persist the Operations mutation, import acceptance receipt or settlement
-transition, and corresponding outbox rows in one PostgreSQL transaction. It must not send to Kafka
+The transactional outbox persists the Operations mutation, import acceptance receipt or settlement
+transition, and corresponding outbox rows in one PostgreSQL transaction. It does not send to Kafka
 inside that transaction. Rollback removes both state and events; commit makes both durable.
 
 The following failure rules are mandatory:
@@ -95,8 +95,33 @@ match. Additive compatible changes remain within a version only when all support
 them. Renames, removals, semantic changes, or changed invariants require a new event type/version and
 an explicit migration window. Topics are not versioned solely for schema changes.
 
+## Transactional outbox implementation
+
+Operations owns two PostgreSQL tables that are independent of Connector Management:
+
+- `operations_event_stream_versions` serializes version allocation for one tenant, aggregate type,
+  and aggregate id;
+- `operations_outbox_events` stores the immutable event, publication state, retry evidence, and
+  fenced claim ownership.
+
+Accepted imports and receivable-allocation transitions append their events inside the existing
+business transaction. The persistence adapter requires that transaction and refuses a standalone
+append. Version allocation uses one row-level conflict point per aggregate, so concurrent changes
+to the same aggregate receive distinct monotonic versions while unrelated aggregates do not
+contend. If payload serialization, version allocation, or outbox insertion fails, the canonical
+mutation, source evidence, receipt, and event all roll back.
+
+The relay repository claims at most the lowest unpublished version of an aggregate. `PENDING` and
+due `RETRY_SCHEDULED` heads are eligible, expired `CLAIMED` heads can be reclaimed, and `FAILED`
+heads continue to block later versions. `FOR UPDATE SKIP LOCKED` permits multiple workers to make
+progress across independent aggregate streams. Claim owner plus publication-attempt number fences
+every success, retry, and terminal-failure update.
+
 ## Current implementation boundary
 
-This slice defines and tests the Operations-owned contracts only. It does not add an Operations
-outbox table, relay, Kafka adapter, topic, inbox, or consumer. Those components must depend on these
-contracts and must not alter the existing Connector outbox/inbox flow.
+This slice implements durable capture, version allocation, claim fencing, bounded publication
+policy, and per-aggregate head ordering. It deliberately does not register a scheduled relay or a
+transport publisher. Until a later Kafka slice supplies and wires an
+`OperationsIntegrationEventPublisher`, Operations events remain safely `PENDING` in PostgreSQL.
+No Operations topic, inbox, consumer, or replay API is added here, and the existing Connector
+outbox/inbox flow is unchanged.

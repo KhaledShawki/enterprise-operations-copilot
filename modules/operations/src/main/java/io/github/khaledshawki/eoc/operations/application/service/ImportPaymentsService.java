@@ -5,6 +5,8 @@ import io.github.khaledshawki.eoc.operations.application.exception.ImportPageAcc
 import io.github.khaledshawki.eoc.operations.application.exception.PaymentCustomerRoleRequiredException;
 import io.github.khaledshawki.eoc.operations.application.exception.PaymentCustomerSourceMappingNotFoundException;
 import io.github.khaledshawki.eoc.operations.application.exception.PaymentSourceMappingCorruptedException;
+import io.github.khaledshawki.eoc.operations.application.model.event.OperationsIntegrationEventFactory;
+import io.github.khaledshawki.eoc.operations.application.model.event.SourceRecordEvidence;
 import io.github.khaledshawki.eoc.operations.application.model.importing.PaymentImportFingerprint;
 import io.github.khaledshawki.eoc.operations.application.model.importing.PaymentImportReceipt;
 import io.github.khaledshawki.eoc.operations.application.port.in.ImportPaymentsCommand;
@@ -13,6 +15,7 @@ import io.github.khaledshawki.eoc.operations.application.port.in.PaymentImportRe
 import io.github.khaledshawki.eoc.operations.application.port.in.PaymentImportResult;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.BusinessPartnerSourceMappingRepository;
+import io.github.khaledshawki.eoc.operations.application.port.out.OperationsIntegrationEventOutbox;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentImportReceiptRepository;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentImportUnitOfWork;
 import io.github.khaledshawki.eoc.operations.application.port.out.PaymentRepository;
@@ -29,6 +32,7 @@ import io.github.khaledshawki.eoc.operations.domain.model.SourceRecordFingerprin
 import io.github.khaledshawki.eoc.operations.domain.model.SourceRecordIdentity;
 import io.github.khaledshawki.eoc.operations.domain.model.SourceSystemId;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -42,6 +46,7 @@ public final class ImportPaymentsService implements ImportPaymentsUseCase {
   private final BusinessPartnerRepository businessPartnerRepository;
   private final BusinessPartnerSourceMappingRepository businessPartnerSourceMappingRepository;
   private final PaymentImportUnitOfWork unitOfWork;
+  private final OperationsIntegrationEventOutbox eventOutbox;
   private final Clock clock;
 
   public ImportPaymentsService(
@@ -51,6 +56,7 @@ public final class ImportPaymentsService implements ImportPaymentsUseCase {
       BusinessPartnerRepository businessPartnerRepository,
       BusinessPartnerSourceMappingRepository businessPartnerSourceMappingRepository,
       PaymentImportUnitOfWork unitOfWork,
+      OperationsIntegrationEventOutbox eventOutbox,
       Clock clock) {
     this.paymentRepository =
         Objects.requireNonNull(paymentRepository, "Payment repository cannot be null");
@@ -69,6 +75,8 @@ public final class ImportPaymentsService implements ImportPaymentsUseCase {
             "Business partner source mapping repository cannot be null");
     this.unitOfWork =
         Objects.requireNonNull(unitOfWork, "Payment import unit of work cannot be null");
+    this.eventOutbox =
+        Objects.requireNonNull(eventOutbox, "Operations event outbox cannot be null");
     this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
   }
 
@@ -95,10 +103,10 @@ public final class ImportPaymentsService implements ImportPaymentsUseCase {
     }
 
     ImportPlan plan = preflight(tenantId, sourceSystemId, command);
-    plan.persist(paymentRepository, sourceMappingRepository);
+    Instant acceptedAt = clock.instant();
+    plan.persist(paymentRepository, sourceMappingRepository, eventOutbox, acceptedAt);
 
-    PaymentImportResult result =
-        plan.counters().toResult(command.pageAcceptanceId(), clock.instant());
+    PaymentImportResult result = plan.counters().toResult(command.pageAcceptanceId(), acceptedAt);
     return importReceiptRepository
         .save(
             tenantId,
@@ -263,12 +271,24 @@ public final class ImportPaymentsService implements ImportPaymentsUseCase {
 
     void persist(
         PaymentRepository paymentRepository,
-        PaymentSourceMappingRepository sourceMappingRepository) {
+        PaymentSourceMappingRepository sourceMappingRepository,
+        OperationsIntegrationEventOutbox eventOutbox,
+        Instant acceptedAt) {
       if (!dirty) {
         return;
       }
-      paymentRepository.save(Objects.requireNonNull(payment));
-      sourceMappingRepository.save(Objects.requireNonNull(mapping));
+      Payment persistedPayment = paymentRepository.save(Objects.requireNonNull(payment));
+      PaymentSourceMapping persistedMapping =
+          sourceMappingRepository.save(Objects.requireNonNull(mapping));
+      eventOutbox.append(
+          OperationsIntegrationEventFactory.pendingPaymentSynchronized(
+              persistedPayment,
+              SourceRecordEvidence.from(
+                  persistedMapping.sourceSystemId(),
+                  persistedMapping.sourceIdentity(),
+                  persistedMapping.sourceVersion(),
+                  persistedMapping.sourceModifiedAt()),
+              acceptedAt));
     }
   }
 
@@ -282,8 +302,15 @@ public final class ImportPaymentsService implements ImportPaymentsUseCase {
 
     void persist(
         PaymentRepository paymentRepository,
-        PaymentSourceMappingRepository sourceMappingRepository) {
-      states.values().forEach(state -> state.persist(paymentRepository, sourceMappingRepository));
+        PaymentSourceMappingRepository sourceMappingRepository,
+        OperationsIntegrationEventOutbox eventOutbox,
+        Instant acceptedAt) {
+      states
+          .values()
+          .forEach(
+              state ->
+                  state.persist(
+                      paymentRepository, sourceMappingRepository, eventOutbox, acceptedAt));
     }
   }
 

@@ -16,8 +16,8 @@ sufficient because multiple relay workers may publish concurrently and partition
 
 ## Decision
 
-Operations owns a separate broker-neutral integration-event contract and, in a later slice, will own
-its own transactional outbox. The initial event catalog is:
+Operations owns a separate broker-neutral integration-event contract and its own transactional
+outbox. The initial event catalog is:
 
 - `operations.business-partner.synchronized.v1`
 - `operations.invoice.synchronized.v1`
@@ -35,9 +35,9 @@ lineage. Duplicate, stale, or replayed import records do not create new events. 
 describe actual state transitions; an idempotent command replay does not create another event.
 
 The Operations module contains no Kafka, JSON, Spring, persistence, retry, or claim types. A
-platform-service adapter will serialize the contract, persist it atomically with the Operations
-mutation, and publish it later. Operations events use separate outbox/inbox storage and topic
-ownership from Connector Management.
+platform-service adapter serializes the contract and persists it atomically with the Operations
+mutation. A separate transport adapter may publish it later. Operations events use separate
+outbox/inbox storage and topic ownership from Connector Management.
 
 ## Consequences
 
