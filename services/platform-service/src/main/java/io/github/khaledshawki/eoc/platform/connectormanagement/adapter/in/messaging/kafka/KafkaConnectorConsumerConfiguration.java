@@ -1,6 +1,7 @@
 package io.github.khaledshawki.eoc.platform.connectormanagement.adapter.in.messaging.kafka;
 
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ConsumeConnectorIntegrationEventUseCase;
+import io.github.khaledshawki.eoc.platform.connectormanagement.adapter.messaging.kafka.ConnectorKafkaHeaders;
 import io.github.khaledshawki.eoc.platform.connectormanagement.configuration.ConnectorKafkaConsumerProperties;
 import io.github.khaledshawki.eoc.platform.connectormanagement.configuration.ConnectorKafkaProperties;
 import java.nio.charset.StandardCharsets;
@@ -27,8 +28,8 @@ import tools.jackson.databind.json.JsonMapper;
 @EnableConfigurationProperties(ConnectorKafkaConsumerProperties.class)
 class KafkaConnectorConsumerConfiguration {
 
-  static final String FAILURE_CODE_HEADER = "eoc-connector-failure-code";
-  static final String RETRYABLE_HEADER = "eoc-connector-retryable";
+  static final String FAILURE_CODE_HEADER = ConnectorKafkaHeaders.FAILURE_CODE;
+  static final String RETRYABLE_HEADER = ConnectorKafkaHeaders.RETRYABLE;
 
   @Bean
   @ConditionalOnProperty(

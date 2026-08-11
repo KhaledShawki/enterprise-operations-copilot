@@ -21,13 +21,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.KafkaException;
-import org.apache.kafka.common.errors.AuthenticationException;
-import org.apache.kafka.common.errors.AuthorizationException;
-import org.apache.kafka.common.errors.InvalidTopicException;
-import org.apache.kafka.common.errors.RecordTooLargeException;
-import org.apache.kafka.common.errors.RetriableException;
-import org.apache.kafka.common.errors.SerializationException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -44,9 +37,8 @@ final class KafkaConnectorIntegrationEventPublisher implements ConnectorIntegrat
   private static final String PUBLISH_TIMEOUT = "kafka-publish-timeout";
   private static final String PUBLISH_INTERRUPTED = "kafka-publish-interrupted";
   private static final String PUBLISH_CANCELLED = "kafka-publish-cancelled";
-  private static final String BROKER_RETRYABLE = "kafka-broker-retryable-error";
-  private static final String PUBLISH_REJECTED = "kafka-publish-rejected";
-  private static final String PUBLISH_FAILED = "kafka-publish-failed";
+  private static final String PUBLISH_FAILED =
+      ConnectorKafkaPublicationFailureClassifier.PUBLISH_FAILED;
 
   private final KafkaTemplate<String, String> kafkaTemplate;
   private final JsonMapper jsonMapper;
@@ -80,7 +72,7 @@ final class KafkaConnectorIntegrationEventPublisher implements ConnectorIntegrat
     try {
       send = kafkaTemplate.send(record);
     } catch (RuntimeException exception) {
-      throw classify(exception);
+      throw ConnectorKafkaPublicationFailureClassifier.classify(exception);
     }
     if (send == null) {
       throw new ConnectorEventPublicationException(
@@ -97,7 +89,8 @@ final class KafkaConnectorIntegrationEventPublisher implements ConnectorIntegrat
     } catch (CancellationException exception) {
       throw new ConnectorEventPublicationException(PUBLISH_CANCELLED, true, exception);
     } catch (ExecutionException exception) {
-      throw classify(exception.getCause() == null ? exception : exception.getCause());
+      throw ConnectorKafkaPublicationFailureClassifier.classify(
+          exception.getCause() == null ? exception : exception.getCause());
     }
   }
 
@@ -156,40 +149,5 @@ final class KafkaConnectorIntegrationEventPublisher implements ConnectorIntegrat
       }
     }
     throw new ConnectorEventPublicationException(CONTRACT_REJECTED, false, null);
-  }
-
-  private static ConnectorEventPublicationException classify(Throwable failure) {
-    Throwable cause = Objects.requireNonNull(failure, "Kafka publication failure cannot be null");
-
-    if (contains(
-        cause,
-        AuthenticationException.class,
-        AuthorizationException.class,
-        InvalidTopicException.class,
-        RecordTooLargeException.class,
-        SerializationException.class)) {
-      return new ConnectorEventPublicationException(PUBLISH_REJECTED, false, cause);
-    }
-    if (contains(cause, RetriableException.class)) {
-      return new ConnectorEventPublicationException(BROKER_RETRYABLE, true, cause);
-    }
-    if (contains(cause, KafkaException.class)) {
-      return new ConnectorEventPublicationException(PUBLISH_FAILED, false, cause);
-    }
-    return new ConnectorEventPublicationException(PUBLISH_FAILED, false, cause);
-  }
-
-  @SafeVarargs
-  private static boolean contains(Throwable failure, Class<? extends Throwable>... types) {
-    Throwable current = failure;
-    while (current != null) {
-      for (Class<? extends Throwable> type : types) {
-        if (type.isInstance(current)) {
-          return true;
-        }
-      }
-      current = current.getCause();
-    }
-    return false;
   }
 }

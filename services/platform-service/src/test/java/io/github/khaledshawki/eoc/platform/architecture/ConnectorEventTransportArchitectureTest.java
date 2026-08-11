@@ -7,6 +7,12 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ConsumeConnectorIntegrationEventUseCase;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.in.InspectConnectorDeadLettersUseCase;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.in.PublishConnectorDeadLetterReplayBatchUseCase;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.in.RequestConnectorDeadLetterReplayUseCase;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorDeadLetterReader;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorDeadLetterReplayPublisher;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorDeadLetterReplayRepository;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventInbox;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventPublisher;
 import org.junit.jupiter.api.Test;
@@ -82,6 +88,63 @@ class ConnectorEventTransportArchitectureTest {
         .dependOnClassesThat()
         .areAssignableTo(ConnectorIntegrationEventInbox.class)
         .because("the Kafka listener must not invoke an application output port directly")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void deadLetterRecoveryKeepsWebAndSchedulingAdaptersOnApplicationInputPorts() {
+    classes()
+        .that()
+        .haveSimpleName("ConnectorDeadLetterRecoveryController")
+        .should()
+        .dependOnClassesThat()
+        .areAssignableTo(InspectConnectorDeadLettersUseCase.class)
+        .andShould()
+        .dependOnClassesThat()
+        .areAssignableTo(RequestConnectorDeadLetterReplayUseCase.class)
+        .because("dead-letter administration must enter through application input ports")
+        .check(PLATFORM_CLASSES);
+
+    classes()
+        .that()
+        .haveSimpleName("ConnectorDeadLetterReplayScheduledRelay")
+        .should()
+        .dependOnClassesThat()
+        .areAssignableTo(PublishConnectorDeadLetterReplayBatchUseCase.class)
+        .because("the scheduled replay relay is an inbound adapter")
+        .check(PLATFORM_CLASSES);
+
+    noClasses()
+        .that()
+        .haveSimpleName("ConnectorDeadLetterRecoveryController")
+        .should()
+        .dependOnClassesThat()
+        .areAssignableTo(ConnectorDeadLetterReader.class)
+        .orShould()
+        .dependOnClassesThat()
+        .areAssignableTo(ConnectorDeadLetterReplayRepository.class)
+        .because("web adapters must not bypass the recovery application boundary")
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void deadLetterKafkaAndPersistenceDetailsRemainOutputAdapters() {
+    classes()
+        .that()
+        .implement(ConnectorDeadLetterReader.class)
+        .or()
+        .implement(ConnectorDeadLetterReplayPublisher.class)
+        .should()
+        .resideInAPackage(CONNECTOR_MESSAGING_PACKAGE)
+        .because("Kafka DLT access is a replaceable messaging adapter detail")
+        .check(PLATFORM_CLASSES);
+
+    classes()
+        .that()
+        .implement(ConnectorDeadLetterReplayRepository.class)
+        .should()
+        .resideInAPackage(CONNECTOR_PERSISTENCE_PACKAGE)
+        .because("durable replay audit and fencing belong to persistence")
         .check(PLATFORM_CLASSES);
   }
 
