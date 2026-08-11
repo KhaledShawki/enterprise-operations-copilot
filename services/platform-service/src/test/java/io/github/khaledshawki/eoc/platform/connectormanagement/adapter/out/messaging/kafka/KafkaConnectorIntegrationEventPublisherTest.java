@@ -257,9 +257,7 @@ class KafkaConnectorIntegrationEventPublisherTest {
   private KafkaConnectorIntegrationEventPublisher publisher(
       KafkaTemplate<String, String> kafkaTemplate, Duration timeout) {
     return new KafkaConnectorIntegrationEventPublisher(
-        kafkaTemplate,
-        jsonMapper,
-        new ConnectorKafkaProperties(TOPIC, timeout, Duration.ofSeconds(5)));
+        kafkaTemplate, jsonMapper, new ConnectorKafkaProperties(TOPIC, timeout));
   }
 
   @SuppressWarnings("unchecked")

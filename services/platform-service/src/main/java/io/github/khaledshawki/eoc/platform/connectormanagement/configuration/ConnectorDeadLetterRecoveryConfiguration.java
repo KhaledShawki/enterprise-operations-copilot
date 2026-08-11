@@ -11,6 +11,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.service.Inspec
 import io.github.khaledshawki.eoc.connectormanagement.application.service.PublishConnectorDeadLetterReplayBatchService;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.RequestConnectorDeadLetterReplayService;
 import io.github.khaledshawki.eoc.platform.connectormanagement.adapter.in.scheduling.ConnectorDeadLetterReplayScheduledRelay;
+import io.github.khaledshawki.eoc.platform.messaging.kafka.PlatformKafkaProducerProperties;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.UUID;
@@ -64,8 +65,9 @@ public class ConnectorDeadLetterRecoveryConfiguration {
   ConnectorDeadLetterReplayScheduledRelay connectorDeadLetterReplayScheduledRelay(
       PublishConnectorDeadLetterReplayBatchUseCase useCase,
       ConnectorKafkaProperties kafkaProperties,
+      PlatformKafkaProducerProperties producerProperties,
       ConnectorDeadLetterRecoveryProperties properties) {
-    requireClaimLeaseExceedsPublicationBudget(kafkaProperties, properties);
+    requireClaimLeaseExceedsPublicationBudget(kafkaProperties, producerProperties, properties);
     return new ConnectorDeadLetterReplayScheduledRelay(
         useCase,
         "connector-dlt-replay-" + UUID.randomUUID(),
@@ -74,10 +76,12 @@ public class ConnectorDeadLetterRecoveryConfiguration {
   }
 
   static void requireClaimLeaseExceedsPublicationBudget(
-      ConnectorKafkaProperties kafkaProperties, ConnectorDeadLetterRecoveryProperties properties) {
+      ConnectorKafkaProperties kafkaProperties,
+      PlatformKafkaProducerProperties producerProperties,
+      ConnectorDeadLetterRecoveryProperties properties) {
     try {
       Duration budget =
-          kafkaProperties
+          producerProperties
               .maxBlockTimeout()
               .plus(kafkaProperties.sendTimeout())
               .multipliedBy(properties.batchSize());

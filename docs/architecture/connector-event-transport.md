@@ -93,8 +93,10 @@ The record timestamp is the event's immutable `occurredAt`, not the relay public
 
 The system intentionally provides at-least-once event delivery.
 
-The producer is configured with Kafka idempotence and `acks=all` to make broker-level retries safe
-within a producer session. That does not turn the PostgreSQL-to-Kafka path into end-to-end
+The shared platform producer is configured with Kafka idempotence and `acks=all` to make
+broker-level retries safe within a producer session. Connector and Operations retain separate
+topics, contracts, outboxes, and publication policies while sharing only transport-level producer
+safety configuration. That does not turn either PostgreSQL-to-Kafka path into end-to-end
 exactly-once delivery. A process can still receive a successful broker acknowledgement and fail
 before the outbox row is marked `PUBLISHED`. After the claim lease expires, the same stable event can
 be published again.
@@ -229,8 +231,9 @@ rejected. Replay is never automatic and cannot form an unbounded DLT-to-source l
 
 KafkaTemplate observation and listener-container observation are enabled. Broker publication,
 listener processing, failures, and consumer-client lag metrics can therefore join the platform's
-Micrometer Observation pipeline without coupling Connector Management to Kafka APIs. Kafka APIs are
-restricted by architecture tests to inbound/outbound Kafka adapter packages.
+Micrometer Observation pipeline without coupling either bounded-context module to Kafka APIs.
+Kafka APIs are restricted by architecture tests to context-specific Kafka adapters and shared
+platform producer wiring.
 
 No Kafka health dependency is added to the application readiness group. A broker outage must not
 make the HTTP/API process unavailable or prevent PostgreSQL business transactions. During a broker
@@ -239,13 +242,13 @@ policy.
 
 ## Topic lifecycle
 
-The application does not create production topics. Source/DLT creation and broker policy are
-operational infrastructure concerns.
+The application does not create production topics. Connector source/DLT and Operations source-topic
+creation and broker policy are operational infrastructure concerns.
 
 The local Docker Compose environment uses a one-shot topic-initialization container because it is a
-development environment. Production infrastructure should provision both topics through IaC and use
-multiple brokers, an appropriate replication factor/minimum ISR, retention policy, quotas, and
-TLS/SASL authentication appropriate to the deployment platform. Increasing the source topic's
+development environment. Production infrastructure should provision all three topics through IaC
+and use multiple brokers, an appropriate replication factor/minimum ISR, retention policy, quotas,
+and TLS/SASL authentication appropriate to the deployment platform. Increasing the Connector source topic's
 partition count can remap keyed aggregates to different partitions and requires a coordinated DLT
 partition-count increase, so it must be treated as an ordering-aware operational change rather than
 a transparent scaling knob. The DLT must use delete-based retention rather than log compaction;
@@ -271,8 +274,8 @@ The Kafka listener is an inbound adapter. It calls
 port directly. This keeps the transport replaceable and makes retry/DLT policy an infrastructure
 concern while durable consumption rules stay behind the application boundary.
 
-This transport consumes Connector events only. Operations owns a separate event catalog and
-contract described in [Operations Integration Event Contracts](operations-event-contracts.md).
-Operations outbox and transport infrastructure remain a separate implementation boundary and must
-not reuse the Connector outbox or inbox. Operations now persists its own versioned outbox records,
-but its Kafka publisher and scheduled relay are intentionally not wired by this Connector transport.
+This consumer transport consumes Connector events only. Operations owns the separate event catalog
+and publication contract described in
+[Operations Integration Event Contracts](operations-event-contracts.md). Its scheduled relay and
+Kafka publisher use Operations-owned ports and a dedicated topic; they do not reuse or invoke the
+Connector outbox, inbox, consumer, DLT, or recovery flow. Operations does not consume its own events.

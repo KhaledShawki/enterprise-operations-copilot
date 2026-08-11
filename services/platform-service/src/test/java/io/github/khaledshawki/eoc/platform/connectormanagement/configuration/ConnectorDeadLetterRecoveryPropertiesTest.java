@@ -3,6 +3,7 @@ package io.github.khaledshawki.eoc.platform.connectormanagement.configuration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.github.khaledshawki.eoc.platform.messaging.kafka.PlatformKafkaProducerProperties;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
@@ -34,8 +35,9 @@ class ConnectorDeadLetterRecoveryPropertiesTest {
   @Test
   void startupRequiresTheClaimLeaseToCoverTheSequentialKafkaPublicationBudget() {
     ConnectorKafkaProperties kafka =
-        new ConnectorKafkaProperties(
-            "connector.events", Duration.ofSeconds(10), Duration.ofSeconds(5));
+        new ConnectorKafkaProperties("connector.events", Duration.ofSeconds(10));
+    PlatformKafkaProducerProperties producer =
+        new PlatformKafkaProducerProperties(Duration.ofSeconds(5));
     ConnectorDeadLetterRecoveryProperties unsafe =
         new ConnectorDeadLetterRecoveryProperties(
             true,
@@ -51,7 +53,7 @@ class ConnectorDeadLetterRecoveryPropertiesTest {
         IllegalStateException.class,
         () ->
             ConnectorDeadLetterRecoveryConfiguration.requireClaimLeaseExceedsPublicationBudget(
-                kafka, unsafe));
+                kafka, producer, unsafe));
   }
 
   private static ConnectorDeadLetterRecoveryProperties properties() {

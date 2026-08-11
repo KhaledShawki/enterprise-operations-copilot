@@ -26,6 +26,9 @@ class ConnectorEventTransportArchitectureTest {
       PLATFORM_PACKAGE + ".connectormanagement.adapter.in.messaging.kafka..";
   private static final String CONNECTOR_KAFKA_PACKAGE =
       PLATFORM_PACKAGE + ".connectormanagement.adapter..messaging.kafka..";
+  private static final String OPERATIONS_KAFKA_PACKAGE =
+      PLATFORM_PACKAGE + ".operations.adapter.out.messaging.kafka..";
+  private static final String PLATFORM_KAFKA_PACKAGE = PLATFORM_PACKAGE + ".messaging.kafka..";
   private static final String CONNECTOR_PERSISTENCE_PACKAGE =
       PLATFORM_PACKAGE + ".connectormanagement.adapter.out.persistence..";
 
@@ -149,10 +152,11 @@ class ConnectorEventTransportArchitectureTest {
   }
 
   @Test
-  void kafkaTechnologyDoesNotLeakOutsideTheKafkaAdapter() {
+  void kafkaTechnologyDoesNotLeakOutsideKafkaAdaptersAndSharedProducerWiring() {
     noClasses()
         .that()
-        .resideOutsideOfPackage(CONNECTOR_KAFKA_PACKAGE)
+        .resideOutsideOfPackages(
+            CONNECTOR_KAFKA_PACKAGE, OPERATIONS_KAFKA_PACKAGE, PLATFORM_KAFKA_PACKAGE)
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("org.apache.kafka..", "org.springframework.kafka..")

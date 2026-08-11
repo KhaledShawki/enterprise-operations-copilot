@@ -4,6 +4,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.in.Consum
 import io.github.khaledshawki.eoc.platform.connectormanagement.adapter.messaging.kafka.ConnectorKafkaHeaders;
 import io.github.khaledshawki.eoc.platform.connectormanagement.configuration.ConnectorKafkaConsumerProperties;
 import io.github.khaledshawki.eoc.platform.connectormanagement.configuration.ConnectorKafkaProperties;
+import io.github.khaledshawki.eoc.platform.messaging.kafka.PlatformKafkaProducerProperties;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import org.apache.kafka.common.TopicPartition;
@@ -93,12 +94,14 @@ class KafkaConnectorConsumerConfiguration {
       ConsumerFactory<Object, Object> consumerFactory,
       KafkaTemplate<String, String> kafkaTemplate,
       ConnectorKafkaProperties kafkaProperties,
+      PlatformKafkaProducerProperties producerProperties,
       ConnectorKafkaConsumerProperties consumerProperties,
       @Value("${spring.kafka.consumer.max-poll-interval:5m}") Duration maxPollInterval) {
     if (kafkaProperties.topic().equals(consumerProperties.dltTopic())) {
       throw new IllegalStateException("Connector Kafka source and DLT topics must be different");
     }
-    requireRecoveryBudgetWithinPollInterval(kafkaProperties, consumerProperties, maxPollInterval);
+    requireRecoveryBudgetWithinPollInterval(
+        producerProperties, consumerProperties, maxPollInterval);
 
     ConcurrentKafkaListenerContainerFactory<Object, Object> factory =
         new ConcurrentKafkaListenerContainerFactory<>();
@@ -115,7 +118,7 @@ class KafkaConnectorConsumerConfiguration {
   }
 
   static void requireRecoveryBudgetWithinPollInterval(
-      ConnectorKafkaProperties kafkaProperties,
+      PlatformKafkaProducerProperties producerProperties,
       ConnectorKafkaConsumerProperties consumerProperties,
       Duration maxPollInterval) {
     if (maxPollInterval.isZero() || maxPollInterval.isNegative()) {
@@ -126,7 +129,7 @@ class KafkaConnectorConsumerConfiguration {
           consumerProperties
               .retryBackoff()
               .multipliedBy(consumerProperties.maxAttempts() - 1L)
-              .plus(kafkaProperties.maxBlockTimeout())
+              .plus(producerProperties.maxBlockTimeout())
               .plus(consumerProperties.dltSendTimeout());
       if (recoveryBudget.compareTo(maxPollInterval) >= 0) {
         throw new IllegalStateException(

@@ -117,11 +117,38 @@ heads continue to block later versions. `FOR UPDATE SKIP LOCKED` permits multipl
 progress across independent aggregate streams. Claim owner plus publication-attempt number fences
 every success, retry, and terminal-failure update.
 
-## Current implementation boundary
+## Kafka publication runtime
 
-This slice implements durable capture, version allocation, claim fencing, bounded publication
-policy, and per-aggregate head ordering. It deliberately does not register a scheduled relay or a
-transport publisher. Until a later Kafka slice supplies and wires an
-`OperationsIntegrationEventPublisher`, Operations events remain safely `PENDING` in PostgreSQL.
-No Operations topic, inbox, consumer, or replay API is added here, and the existing Connector
-outbox/inbox flow is unchanged.
+The platform supplies an Operations-owned Kafka output adapter and an inbound scheduled relay. The
+relay enters through `PublishOperationsOutboxBatchUseCase`; it does not call persistence or Kafka
+directly. The application service claims eligible stream heads, invokes the
+`OperationsIntegrationEventPublisher` output port, and records one fenced publication outcome.
+
+Operations uses its own `eoc.operations.integration-events` topic. The publisher validates and
+deserializes the persisted payload into its typed Operations contract before producing a record.
+It then emits the complete broker-neutral envelope, including `aggregateVersion`, with the
+deterministic aggregate key and the immutable `occurredAt` timestamp. Claim ownership, attempts,
+retry timestamps, and other outbox state never enter the wire contract.
+
+An outbox row becomes `PUBLISHED` only after Kafka acknowledges the send. Producer idempotence and
+`acks=all` protect Kafka client retries, while the PostgreSQL-to-Kafka path remains at least once.
+A crash after broker acknowledgement but before the fenced database update leaves an expired claim
+that can be reclaimed; republication uses the same event id, aggregate version, key, and content.
+
+Publication waits are bounded by the shared platform `max.block.ms` budget plus the
+Operations-specific acknowledgement timeout. Startup rejects a claim lease that does not exceed
+the worst-case sequential budget for the configured batch:
+
+```text
+claimLease > batchSize * (maxBlockTimeout + acknowledgementWaitTimeout)
+```
+
+Retryable broker failures and acknowledgement timeouts flow through the existing durable outbox
+retry policy. Invalid contracts and permanent Kafka rejections are terminal and remain a
+same-aggregate ordering barrier. Unknown Kafka failures fail closed rather than retrying forever.
+Multiple workers can scale across independent aggregate streams through the existing fenced
+`FOR UPDATE SKIP LOCKED` claim protocol.
+
+No Operations consumer, inbox, DLT, or replay API is added in this publication slice. Future
+consumers must provide their own durable `eventId` inbox before relying on this at-least-once topic.
+The existing Connector outbox, inbox, consumer, DLT, and recovery flow remain unchanged.

@@ -76,8 +76,7 @@ class KafkaConnectorDeadLetterReplayPublisherTest {
   private static KafkaConnectorDeadLetterReplayPublisher publisher(
       KafkaTemplate<String, String> template) {
     return new KafkaConnectorDeadLetterReplayPublisher(
-        template,
-        new ConnectorKafkaProperties(SOURCE_TOPIC, Duration.ofSeconds(1), Duration.ofSeconds(5)));
+        template, new ConnectorKafkaProperties(SOURCE_TOPIC, Duration.ofSeconds(1)));
   }
 
   private static ClaimedConnectorDeadLetterReplay replay(String topic, int partition) {

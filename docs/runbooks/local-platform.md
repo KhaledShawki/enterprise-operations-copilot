@@ -7,7 +7,7 @@ This runbook operates the complete local Enterprise Operations Copilot platform:
 - `keycloak`
 - `keycloak-postgres`
 - `kafka`
-- one-shot `kafka-topic-init` for the source and dead-letter topics
+- one-shot `kafka-topic-init` for the Connector source/DLT and Operations source topics
 
 The configuration is intended only for local development. It is not a production
 deployment model.
@@ -55,7 +55,7 @@ docker compose \
   up --detach --build --wait --wait-timeout 240
 ```
 
-Compose waits for both PostgreSQL databases, Keycloak, Kafka, both Connector event topic
+Compose waits for both PostgreSQL databases, Keycloak, Kafka, all three event-topic
 initializations, and the platform service. The one-shot `kafka-topic-init` container must exit
 successfully before the platform service starts.
 
@@ -91,8 +91,8 @@ Both responses should report:
 }
 ```
 
-Verify that the Connector integration-events source and DLT topics exist with the expected local
-partition count:
+Verify that the Connector integration-events source/DLT and Operations integration-events source
+topics exist with the expected local partition count:
 
 ```bash
 docker compose \
@@ -110,11 +110,20 @@ docker compose \
   --bootstrap-server kafka:9092 \
   --describe \
   --topic "$(grep '^EOC_CONNECTOR_EVENTS_KAFKA_DLT_TOPIC=' deployment/compose/.env | cut -d= -f2-)"
+
+docker compose \
+  --env-file deployment/compose/.env \
+  -f deployment/compose/compose.yaml \
+  exec -T kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka:9092 \
+  --describe \
+  --topic "$(grep '^EOC_OPERATIONS_EVENTS_KAFKA_TOPIC=' deployment/compose/.env | cut -d= -f2-)"
 ```
 
-Both topics should report six partitions and replication factor one in the single-node local
-environment. Matching partition counts preserve the failed source partition when a record is sent
-to the DLT. Topic creation is handled by Compose only for local development; production topics are
+All three topics should report six partitions and replication factor one in the single-node local
+environment. Matching Connector source/DLT partition counts preserve the failed source partition.
+The Operations topic is separate because Operations owns a distinct contract and aggregate-version
+model. Topic creation is handled by Compose only for local development; production topics are
 provisioned by infrastructure automation.
 
 ### Inspect and replay a Connector dead letter
@@ -318,7 +327,7 @@ docker compose \
 ```
 
 The next startup recreates both databases and the Kafka data volume, imports the Keycloak realm,
-runs Flyway migrations, recreates the local Connector integration-events source and DLT topics, and
+runs Flyway migrations, recreates the local Connector source/DLT and Operations source topics, and
 validates the application schema.
 
 ## Diagnose an unhealthy platform service
@@ -343,4 +352,5 @@ docker compose \
 Common causes include an unavailable database, invalid local credentials, occupied host ports, a
 Kafka topic-initialization failure, or a Keycloak realm that was not re-imported after its source
 configuration changed. A temporary Kafka outage after startup does not make application readiness
-depend on the broker; Connector events remain durable in the PostgreSQL outbox and are retried.
+depend on the broker; Connector and Operations events remain durable in their own PostgreSQL
+outboxes and are retried by their independent policies.

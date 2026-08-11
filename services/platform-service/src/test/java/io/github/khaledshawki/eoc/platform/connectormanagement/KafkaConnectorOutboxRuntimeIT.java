@@ -124,7 +124,7 @@ class KafkaConnectorOutboxRuntimeIT {
   void shouldPublishTheOutboxEnvelopeToKafkaAndPreserveAtLeastOnceIdentity() throws Exception {
     Map<String, Object> producerConfiguration = producerFactory.getConfigurationProperties();
     assertEquals(
-        "eoc-connector-outbox",
+        "eoc-platform-outbox",
         String.valueOf(producerConfiguration.get(ProducerConfig.CLIENT_ID_CONFIG)));
     assertEquals("all", String.valueOf(producerConfiguration.get(ProducerConfig.ACKS_CONFIG)));
     assertEquals(
