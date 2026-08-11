@@ -117,6 +117,49 @@ environment. Matching partition counts preserve the failed source partition when
 to the DLT. Topic creation is handled by Compose only for local development; production topics are
 provisioned by infrastructure automation.
 
+### Inspect and replay a Connector dead letter
+
+Use a JWT containing the global `platform-admin` realm role. Tenant roles are intentionally
+insufficient because a malformed record may not contain trustworthy tenant identity.
+
+```bash
+export EOC_PLATFORM_ADMIN_TOKEN='<platform-admin-access-token>'
+
+curl --fail --silent --show-error \
+  --header "Authorization: Bearer ${EOC_PLATFORM_ADMIN_TOKEN}" \
+  http://127.0.0.1:8080/api/v1/admin/connector-event-dead-letters/partitions \
+  | python3 -m json.tool
+
+curl --fail --silent --show-error \
+  --header "Authorization: Bearer ${EOC_PLATFORM_ADMIN_TOKEN}" \
+  'http://127.0.0.1:8080/api/v1/admin/connector-event-dead-letters/partitions/0/records?fromOffset=0&limit=20' \
+  | python3 -m json.tool
+```
+
+Inspect an exact retained record before requesting replay:
+
+```bash
+curl --fail --silent --show-error \
+  --header "Authorization: Bearer ${EOC_PLATFORM_ADMIN_TOKEN}" \
+  http://127.0.0.1:8080/api/v1/admin/connector-event-dead-letters/partitions/0/records/0 \
+  | python3 -m json.tool
+
+curl --fail --silent --show-error \
+  --request POST \
+  --header "Authorization: Bearer ${EOC_PLATFORM_ADMIN_TOKEN}" \
+  --header 'Content-Type: application/json' \
+  --data '{"reason":"validated contract fix deployed"}' \
+  http://127.0.0.1:8080/api/v1/admin/connector-event-dead-letters/partitions/0/records/0/replays \
+  | python3 -m json.tool
+```
+
+Poll the `Location` returned by the replay request until its status is `REPLAYED` or `FAILED`.
+`PENDING`, `CLAIMED`, and `RETRY_SCHEDULED` are non-terminal. Repeating the POST for the same
+unchanged DLT coordinate returns the existing audited request. Replay keeps the original key,
+value, partition, timestamp, and stable `eventId`; it is at least once and relies on inbox
+idempotency. Do not delete or modify the DLT record manually. Unrequested records remain available
+only for the configured Kafka retention period.
+
 Verify that business APIs remain protected:
 
 ```bash
@@ -157,6 +200,7 @@ Expected output:
 10
 11
 12
+13
 ```
 
 Flyway owns schema migration. Hibernate validates the migrated schema and must not
@@ -248,7 +292,7 @@ docker compose \
 ```
 
 Run the service-health and migration checks again. The services should become healthy,
-and the Flyway history should still contain versions `1` through `12`.
+and the Flyway history should still contain versions `1` through `13`.
 
 ## Stop the platform
 

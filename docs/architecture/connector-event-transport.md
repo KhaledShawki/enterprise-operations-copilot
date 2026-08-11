@@ -189,6 +189,42 @@ permitted. There is still no transaction spanning DLT publication and the source
 crash in that narrow window can duplicate a DLT record. Operational replay must retain `eventId` and
 remain idempotent rather than treating the DLT as exactly once.
 
+## Controlled dead-letter inspection and replay
+
+The Kafka DLT is inspected in place through a platform-admin API. Inspection uses short-lived,
+manually assigned consumers that seek to explicit DLT partition/offset coordinates and never commit
+offsets. It therefore cannot change either the source consumer group's recovery position or an
+operator's paging cursor. Pages are bounded, reads have a finite timeout, and list responses omit the
+raw key, value, and headers. Exact-record responses include that material because it is required for
+diagnosis and replay and are restricted to the global `platform-admin` role.
+
+Kafka retention remains the availability boundary for records that have not been selected for
+replay. An expired DLT offset returns an explicit out-of-retained-range response; the application
+does not pretend that Kafka is an indefinite audit store.
+
+A replay request snapshots the immutable source key, value, partition, timestamp, and replayable
+headers into PostgreSQL together with the requesting JWT issuer/subject, reason, and request time.
+The DLT topic/partition/offset tuple is unique. Repeating a request for identical content returns the
+same durable request, while reuse of the same coordinates with a different fingerprint is rejected
+as a collision. This protects against topic recreation or offset reuse silently changing an audited
+request.
+
+The replay relay claims rows with `FOR UPDATE SKIP LOCKED`, a lease, worker identity, and publication
+attempt fence. It republishes the original record to the original source partition and adds only
+replay request/generation evidence; DLT exception/origin headers are not copied back to the source.
+Transient publication failures receive bounded durable retries. Permanent failures and exhausted
+attempts become terminal `FAILED` requests. Startup rejects a claim lease that cannot cover the
+worst-case sequential Kafka publication budget for the configured replay batch.
+
+Replay publication is itself at least once. A process can publish successfully and stop before the
+database row becomes `REPLAYED`; after lease expiry another worker can publish the same record again.
+The stable envelope `eventId` is deliberately unchanged, so the existing inbox absorbs that replay
+without duplicating the projection. No PostgreSQL/Kafka distributed transaction is introduced.
+
+Every replay increments `eoc-connector-replay-generation`. Records that fail again retain this
+generation when they return to the DLT, and requests at the configured maximum generation are
+rejected. Replay is never automatic and cannot form an unbounded DLT-to-source loop.
+
 ## Observability
 
 KafkaTemplate observation and listener-container observation are enabled. Broker publication,
@@ -212,7 +248,8 @@ multiple brokers, an appropriate replication factor/minimum ISR, retention polic
 TLS/SASL authentication appropriate to the deployment platform. Increasing the source topic's
 partition count can remap keyed aggregates to different partitions and requires a coordinated DLT
 partition-count increase, so it must be treated as an ordering-aware operational change rather than
-a transparent scaling knob.
+a transparent scaling knob. The DLT must use delete-based retention rather than log compaction;
+partition/offset is part of the audited replay identity.
 
 ## Security boundary
 
@@ -222,7 +259,8 @@ security properties remain external configuration and must use the managed broke
 and authentication mechanism.
 
 No credentials, claim metadata, or internal retry state are placed in the event payload or Kafka
-record.
+record. DLT payloads can still contain tenant business data, so production Kafka ACLs and the
+platform-admin API authorization must be treated as privileged operational access.
 
 ## Application boundary
 
