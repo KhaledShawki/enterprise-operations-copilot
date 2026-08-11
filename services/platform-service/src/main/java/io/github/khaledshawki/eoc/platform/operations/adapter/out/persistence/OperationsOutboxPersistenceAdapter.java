@@ -75,6 +75,7 @@ class OperationsOutboxPersistenceAdapter
         UPDATE operations_outbox_events event
         SET publish_status = 'CLAIMED',
             publish_attempt_count = event.publish_attempt_count + 1,
+            generation_attempt_count = event.generation_attempt_count + 1,
             claimed_at = ?,
             claimed_by = ?,
             published_at = NULL,
@@ -92,6 +93,8 @@ class OperationsOutboxPersistenceAdapter
           event.payload::text AS payload,
           event.occurred_at,
           event.publish_attempt_count,
+          event.recovery_generation,
+          event.generation_attempt_count,
           event.claimed_by,
           event.claimed_at,
           event.next_publish_at
@@ -107,6 +110,8 @@ class OperationsOutboxPersistenceAdapter
         payload,
         occurred_at,
         publish_attempt_count,
+        recovery_generation,
+        generation_attempt_count,
         claimed_by,
         claimed_at
       FROM claimed
@@ -300,6 +305,8 @@ class OperationsOutboxPersistenceAdapter
         resultSet.getString("payload"),
         resultSet.getTimestamp("occurred_at").toInstant(),
         resultSet.getInt("publish_attempt_count"),
+        resultSet.getInt("recovery_generation"),
+        resultSet.getInt("generation_attempt_count"),
         resultSet.getString("claimed_by"),
         resultSet.getTimestamp("claimed_at").toInstant());
   }
