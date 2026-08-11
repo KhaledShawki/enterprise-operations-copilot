@@ -42,8 +42,11 @@ class OperationsArchitectureTest {
             "org.springframework..",
             "jakarta.persistence..",
             "javax.persistence..",
-            "org.hibernate..")
-        .because("the Operations module must remain framework independent")
+            "org.hibernate..",
+            "org.apache.kafka..",
+            "com.fasterxml.jackson..",
+            "io.micrometer..")
+        .because("the Operations module must remain framework and transport independent")
         .check(OPERATIONS_CLASSES);
   }
 
