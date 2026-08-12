@@ -63,6 +63,7 @@
     <module>modules/connector-management</module>
     <module>modules/operations</module>
     <module>modules/analytics</module>
+    <module>modules/copilot</module>
     <module>services/platform-service</module>
   </modules>
 
