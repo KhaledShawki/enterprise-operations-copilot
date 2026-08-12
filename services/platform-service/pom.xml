@@ -48,6 +48,12 @@
       <version>${project.version}</version>
     </dependency>
 
+    <dependency>
+      <groupId>io.github.khaledshawki.eoc</groupId>
+      <artifactId>analytics</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
     <!-- Application runtime -->
 
     <dependency>
