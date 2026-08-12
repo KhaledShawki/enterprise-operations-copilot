@@ -77,7 +77,7 @@ class KafkaAnalyticsIntegrationEventConsumerIT {
   private static final UUID INVOICE_ID = UUID.fromString("00000000-0000-0000-0000-000000000383");
   private static final UUID CUSTOMER_ID = UUID.fromString("00000000-0000-0000-0000-000000000384");
 
-  @Container static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka-native:4.2.1");
+  @Container static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka:4.2.1");
 
   @Autowired private KafkaTemplate<String, String> kafkaTemplate;
   @Autowired private JsonMapper jsonMapper;

@@ -83,7 +83,7 @@ class KafkaConnectorIntegrationEventConsumerIT {
   private static final String FUNCTION_NAME = "connector_kafka_retry_gate_function";
   private static final String SEQUENCE_NAME = "connector_kafka_retry_attempt_sequence";
 
-  @Container static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka-native:4.2.1");
+  @Container static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka:4.2.1");
 
   @Autowired private KafkaTemplate<String, String> kafkaTemplate;
   @Autowired private JsonMapper jsonMapper;
