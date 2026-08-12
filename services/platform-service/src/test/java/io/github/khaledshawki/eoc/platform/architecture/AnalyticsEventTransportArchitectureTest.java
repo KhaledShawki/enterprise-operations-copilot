@@ -21,6 +21,8 @@ class AnalyticsEventTransportArchitectureTest {
       "io.github.khaledshawki.eoc.analytics.application.service..";
   private static final String KAFKA_INPUT_PACKAGE =
       PLATFORM_ANALYTICS_PACKAGE + ".adapter.in.messaging.kafka..";
+  private static final String KAFKA_PACKAGE =
+      PLATFORM_ANALYTICS_PACKAGE + ".adapter..messaging.kafka..";
   private static final String PERSISTENCE_PACKAGE =
       PLATFORM_ANALYTICS_PACKAGE + ".adapter.out.persistence..";
 
@@ -46,6 +48,8 @@ class AnalyticsEventTransportArchitectureTest {
   @Test
   void analyticsTransportDoesNotDependOnWebOrJpaEntityApis() {
     noClasses()
+        .that()
+        .resideInAnyPackage(KAFKA_PACKAGE, PERSISTENCE_PACKAGE)
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("org.springframework.web..", "jakarta.persistence..", "org.hibernate..")

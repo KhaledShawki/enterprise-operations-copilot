@@ -7,9 +7,11 @@ import io.github.khaledshawki.eoc.analytics.application.port.in.ProjectInvoiceRe
 import io.github.khaledshawki.eoc.analytics.application.port.out.AnalyticsIntegrationEventInbox;
 import io.github.khaledshawki.eoc.analytics.application.port.out.BusinessPartnerProjectionRepository;
 import io.github.khaledshawki.eoc.analytics.application.port.out.InvoiceReceivableProjectionRepository;
+import io.github.khaledshawki.eoc.analytics.application.port.out.ReceivableReadPort;
 import io.github.khaledshawki.eoc.analytics.application.service.ConsumeAnalyticsIntegrationEventService;
 import io.github.khaledshawki.eoc.analytics.application.service.ProjectBusinessPartnerService;
 import io.github.khaledshawki.eoc.analytics.application.service.ProjectInvoiceReceivableService;
+import io.github.khaledshawki.eoc.analytics.application.service.ReceivableQueryService;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +31,11 @@ public class AnalyticsConfiguration {
   ProjectInvoiceReceivableUseCase projectInvoiceReceivableUseCase(
       InvoiceReceivableProjectionRepository repository) {
     return new ProjectInvoiceReceivableService(repository);
+  }
+
+  @Bean
+  ReceivableQueryService receivableQueryService(ReceivableReadPort readPort) {
+    return new ReceivableQueryService(readPort);
   }
 
   @Bean
