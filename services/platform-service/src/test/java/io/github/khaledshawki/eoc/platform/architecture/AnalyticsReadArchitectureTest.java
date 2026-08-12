@@ -7,6 +7,7 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import io.github.khaledshawki.eoc.analytics.application.port.out.ReceivableSummaryReadPort;
 import org.junit.jupiter.api.Test;
 
 class AnalyticsReadArchitectureTest {
@@ -71,6 +72,18 @@ class AnalyticsReadArchitectureTest {
         .haveSimpleName("ReceivableReadPersistenceAdapter")
         .should()
         .implement(JavaClass.Predicates.resideInAPackage(ANALYTICS_OUTPUT_PORT_PACKAGE))
+        .check(PLATFORM_CLASSES);
+  }
+
+  @Test
+  void receivableReadPersistenceImplementsTheSummaryReadPort() {
+    classes()
+        .that()
+        .resideInAPackage(ANALYTICS_PERSISTENCE_PACKAGE)
+        .and()
+        .haveSimpleName("ReceivableReadPersistenceAdapter")
+        .should()
+        .implement(ReceivableSummaryReadPort.class)
         .check(PLATFORM_CLASSES);
   }
 

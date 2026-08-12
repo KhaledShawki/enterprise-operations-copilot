@@ -14,7 +14,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(assignableTypes = ReceivableController.class)
+@RestControllerAdvice(
+    assignableTypes = {ReceivableController.class, ReceivableSummaryController.class})
 public class ReceivableApiExceptionHandler {
 
   private static final URI NOT_FOUND_TYPE = URI.create("urn:eoc:problem:receivable-not-found");
