@@ -2,16 +2,19 @@ package io.github.khaledshawki.eoc.platform.analytics.configuration;
 
 import io.github.khaledshawki.eoc.analytics.application.model.event.AnalyticsEventConsumptionResult;
 import io.github.khaledshawki.eoc.analytics.application.port.in.ConsumeAnalyticsIntegrationEventUseCase;
+import io.github.khaledshawki.eoc.analytics.application.port.in.GetReceivablesSummaryUseCase;
 import io.github.khaledshawki.eoc.analytics.application.port.in.ProjectBusinessPartnerUseCase;
 import io.github.khaledshawki.eoc.analytics.application.port.in.ProjectInvoiceReceivableUseCase;
 import io.github.khaledshawki.eoc.analytics.application.port.out.AnalyticsIntegrationEventInbox;
 import io.github.khaledshawki.eoc.analytics.application.port.out.BusinessPartnerProjectionRepository;
 import io.github.khaledshawki.eoc.analytics.application.port.out.InvoiceReceivableProjectionRepository;
 import io.github.khaledshawki.eoc.analytics.application.port.out.ReceivableReadPort;
+import io.github.khaledshawki.eoc.analytics.application.port.out.ReceivableSummaryReadPort;
 import io.github.khaledshawki.eoc.analytics.application.service.ConsumeAnalyticsIntegrationEventService;
 import io.github.khaledshawki.eoc.analytics.application.service.ProjectBusinessPartnerService;
 import io.github.khaledshawki.eoc.analytics.application.service.ProjectInvoiceReceivableService;
 import io.github.khaledshawki.eoc.analytics.application.service.ReceivableQueryService;
+import io.github.khaledshawki.eoc.analytics.application.service.ReceivableSummaryQueryService;
 import java.util.Objects;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,6 +39,11 @@ public class AnalyticsConfiguration {
   @Bean
   ReceivableQueryService receivableQueryService(ReceivableReadPort readPort) {
     return new ReceivableQueryService(readPort);
+  }
+
+  @Bean
+  GetReceivablesSummaryUseCase getReceivablesSummaryUseCase(ReceivableSummaryReadPort readPort) {
+    return new ReceivableSummaryQueryService(readPort);
   }
 
   @Bean
