@@ -85,7 +85,7 @@ class KafkaConnectorOutboxRuntimeIT {
   private static final ConnectorTenantId TENANT_ID =
       ConnectorTenantId.of(UUID.fromString("00000000-0000-0000-0000-000000000010"));
 
-  @Container static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka-native:4.2.1");
+  @Container static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka:4.2.1");
 
   @Autowired private ConnectorRepository connectorRepository;
   @Autowired private ImportRunLifecycleUseCase importRunLifecycleUseCase;

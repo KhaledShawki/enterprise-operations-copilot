@@ -83,7 +83,7 @@ class KafkaConnectorDeadLetterRecoveryIT {
   private static final int PARTITION = 1;
   private static final Instant SOURCE_TIMESTAMP = Instant.parse("2026-08-10T11:59:00Z");
 
-  @Container static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka-native:4.2.1");
+  @Container static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka:4.2.1");
 
   @Autowired private KafkaTemplate<String, String> kafkaTemplate;
   @Autowired private InspectConnectorDeadLettersUseCase inspectUseCase;

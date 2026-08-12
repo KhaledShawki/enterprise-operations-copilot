@@ -66,8 +66,7 @@ class KafkaConnectorDltPublicationFailureIT {
 
   @Container
   static final KafkaContainer KAFKA =
-      new KafkaContainer("apache/kafka-native:4.2.1")
-          .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false");
+      new KafkaContainer("apache/kafka:4.2.1").withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false");
 
   @Autowired private KafkaTemplate<String, String> kafkaTemplate;
 
