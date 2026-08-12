@@ -7,7 +7,8 @@ This runbook operates the complete local Enterprise Operations Copilot platform:
 - `keycloak`
 - `keycloak-postgres`
 - `kafka`
-- one-shot `kafka-topic-init` for the Connector source/DLT and Operations source topics
+- one-shot `kafka-topic-init` for the Connector source/DLT, Operations source, and Analytics DLT
+  topics
 
 The configuration is intended only for local development. It is not a production
 deployment model.
@@ -55,7 +56,7 @@ docker compose \
   up --detach --build --wait --wait-timeout 240
 ```
 
-Compose waits for both PostgreSQL databases, Keycloak, Kafka, all three event-topic
+Compose waits for both PostgreSQL databases, Keycloak, Kafka, all four event-topic
 initializations, and the platform service. The one-shot `kafka-topic-init` container must exit
 successfully before the platform service starts.
 
@@ -91,8 +92,8 @@ Both responses should report:
 }
 ```
 
-Verify that the Connector integration-events source/DLT and Operations integration-events source
-topics exist with the expected local partition count:
+Verify that the Connector integration-events source/DLT, Operations integration-events source,
+and Analytics DLT topics exist with the expected local partition count:
 
 ```bash
 docker compose \
@@ -118,13 +119,22 @@ docker compose \
   --bootstrap-server kafka:9092 \
   --describe \
   --topic "$(grep '^EOC_OPERATIONS_EVENTS_KAFKA_TOPIC=' deployment/compose/.env | cut -d= -f2-)"
+
+docker compose \
+  --env-file deployment/compose/.env \
+  -f deployment/compose/compose.yaml \
+  exec -T kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka:9092 \
+  --describe \
+  --topic "$(grep '^EOC_ANALYTICS_EVENTS_KAFKA_DLT_TOPIC=' deployment/compose/.env | cut -d= -f2-)"
 ```
 
-All three topics should report six partitions and replication factor one in the single-node local
+All four topics should report six partitions and replication factor one in the single-node local
 environment. Matching Connector source/DLT partition counts preserve the failed source partition.
 The Operations topic is separate because Operations owns a distinct contract and aggregate-version
-model. Topic creation is handled by Compose only for local development; production topics are
-provisioned by infrastructure automation.
+model. Analytics consumes that Operations source topic directly; its DLT has the same partition
+count so a failed record can retain the source partition. Topic creation is handled by Compose only
+for local development; production topics are provisioned by infrastructure automation.
 
 ### Inspect and replay a Connector dead letter
 
@@ -210,6 +220,9 @@ Expected output:
 11
 12
 13
+14
+15
+16
 ```
 
 Flyway owns schema migration. Hibernate validates the migrated schema and must not
@@ -301,7 +314,7 @@ docker compose \
 ```
 
 Run the service-health and migration checks again. The services should become healthy,
-and the Flyway history should still contain versions `1` through `13`.
+and the Flyway history should still contain versions `1` through `16`.
 
 ## Stop the platform
 
@@ -327,8 +340,8 @@ docker compose \
 ```
 
 The next startup recreates both databases and the Kafka data volume, imports the Keycloak realm,
-runs Flyway migrations, recreates the local Connector source/DLT and Operations source topics, and
-validates the application schema.
+runs Flyway migrations, recreates the local Connector source/DLT, Operations source, and Analytics
+DLT topics, and validates the application schema.
 
 ## Diagnose an unhealthy platform service
 
@@ -353,4 +366,5 @@ Common causes include an unavailable database, invalid local credentials, occupi
 Kafka topic-initialization failure, or a Keycloak realm that was not re-imported after its source
 configuration changed. A temporary Kafka outage after startup does not make application readiness
 depend on the broker; Connector and Operations events remain durable in their own PostgreSQL
-outboxes and are retried by their independent policies.
+outboxes and are retried by their independent policies. Analytics consumption resumes from its
+committed Kafka offsets when broker connectivity returns.
