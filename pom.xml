@@ -72,11 +72,24 @@
     <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <spring-ai.version>2.0.0</spring-ai.version>
     <maven.enforcer.plugin.version>3.6.2</maven.enforcer.plugin.version>
     <spotless-maven-plugin.version>3.8.0</spotless-maven-plugin.version>
     <google-java-format.version>1.35.0</google-java-format.version>
     <archunit.version>1.4.2</archunit.version>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.ai</groupId>
+        <artifactId>spring-ai-bom</artifactId>
+        <version>${spring-ai.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <build>
     <plugins>
