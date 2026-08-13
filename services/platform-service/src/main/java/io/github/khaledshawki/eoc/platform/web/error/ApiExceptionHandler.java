@@ -1,5 +1,6 @@
 package io.github.khaledshawki.eoc.platform.web.error;
 
+import io.github.khaledshawki.eoc.audit.application.exception.AuditUnavailableException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAccessDeniedException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAlreadyActiveException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAlreadySuspendedException;
@@ -7,6 +8,15 @@ import io.github.khaledshawki.eoc.connectormanagement.application.exception.Conn
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNotActiveException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorNotFoundException;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.InvalidConnectorConfigurationException;
+import io.github.khaledshawki.eoc.copilot.application.exception.CopilotAnswerGroundingException;
+import io.github.khaledshawki.eoc.copilot.application.exception.CopilotModelProtocolException;
+import io.github.khaledshawki.eoc.copilot.application.exception.CopilotModelUnavailableException;
+import io.github.khaledshawki.eoc.copilot.application.exception.CopilotOrchestrationLimitExceededException;
+import io.github.khaledshawki.eoc.copilot.application.exception.CopilotToolAccessDeniedException;
+import io.github.khaledshawki.eoc.copilot.application.exception.CopilotToolDataCorruptedException;
+import io.github.khaledshawki.eoc.copilot.application.exception.CopilotToolDataNotFoundException;
+import io.github.khaledshawki.eoc.copilot.application.exception.CopilotToolDataUnavailableException;
+import io.github.khaledshawki.eoc.copilot.application.exception.InvalidCopilotToolArgumentsException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.InvalidTenantRoleKeyException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotActiveException;
 import io.github.khaledshawki.eoc.tenantaccess.application.exception.PlatformUserNotFoundException;
@@ -67,6 +77,14 @@ public class ApiExceptionHandler {
       URI.create("urn:eoc:problem:connector-already-suspended");
   private static final URI CONNECTOR_NOT_ACTIVE_TYPE =
       URI.create("urn:eoc:problem:connector-not-active");
+  private static final URI COPILOT_DATA_NOT_FOUND_TYPE =
+      URI.create("urn:eoc:problem:copilot-data-not-found");
+  private static final URI COPILOT_UNAVAILABLE_TYPE =
+      URI.create("urn:eoc:problem:copilot-unavailable");
+  private static final URI COPILOT_UPSTREAM_PROTOCOL_ERROR_TYPE =
+      URI.create("urn:eoc:problem:copilot-upstream-protocol-error");
+  private static final URI COPILOT_DATA_INTEGRITY_ERROR_TYPE =
+      URI.create("urn:eoc:problem:copilot-data-integrity-error");
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ProblemDetail handleValidationFailure(MethodArgumentNotValidException exception) {
@@ -292,6 +310,70 @@ public class ApiExceptionHandler {
     problem.setType(CONNECTOR_NOT_ACTIVE_TYPE);
     problem.setTitle("Connector is not active");
     problem.setProperty("code", "CONNECTOR_NOT_ACTIVE");
+    return problem;
+  }
+
+  @ExceptionHandler(CopilotToolAccessDeniedException.class)
+  ProblemDetail handleCopilotAccessDenied() {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.FORBIDDEN, "You do not have permission to access this resource.");
+    problem.setType(ACCESS_DENIED_TYPE);
+    problem.setTitle("Access denied");
+    problem.setProperty("code", "ACCESS_DENIED");
+    return problem;
+  }
+
+  @ExceptionHandler(CopilotToolDataNotFoundException.class)
+  ProblemDetail handleCopilotDataNotFound() {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.NOT_FOUND, "The requested Copilot data was not found.");
+    problem.setType(COPILOT_DATA_NOT_FOUND_TYPE);
+    problem.setTitle("Copilot data not found");
+    problem.setProperty("code", "COPILOT_DATA_NOT_FOUND");
+    return problem;
+  }
+
+  @ExceptionHandler({
+    CopilotModelUnavailableException.class,
+    CopilotToolDataUnavailableException.class,
+    AuditUnavailableException.class
+  })
+  ProblemDetail handleCopilotUnavailable() {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.SERVICE_UNAVAILABLE, "Copilot is temporarily unavailable.");
+    problem.setType(COPILOT_UNAVAILABLE_TYPE);
+    problem.setTitle("Copilot unavailable");
+    problem.setProperty("code", "COPILOT_UNAVAILABLE");
+    return problem;
+  }
+
+  @ExceptionHandler({
+    CopilotModelProtocolException.class,
+    CopilotAnswerGroundingException.class,
+    CopilotOrchestrationLimitExceededException.class,
+    InvalidCopilotToolArgumentsException.class
+  })
+  ProblemDetail handleCopilotUpstreamProtocolError() {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.BAD_GATEWAY, "Copilot could not produce a valid grounded response.");
+    problem.setType(COPILOT_UPSTREAM_PROTOCOL_ERROR_TYPE);
+    problem.setTitle("Copilot upstream protocol error");
+    problem.setProperty("code", "COPILOT_UPSTREAM_PROTOCOL_ERROR");
+    return problem;
+  }
+
+  @ExceptionHandler(CopilotToolDataCorruptedException.class)
+  ProblemDetail handleCopilotDataIntegrityError() {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.INTERNAL_SERVER_ERROR, "Copilot source data failed integrity validation.");
+    problem.setType(COPILOT_DATA_INTEGRITY_ERROR_TYPE);
+    problem.setTitle("Copilot data integrity error");
+    problem.setProperty("code", "COPILOT_DATA_INTEGRITY_ERROR");
     return problem;
   }
 
