@@ -33,7 +33,10 @@ class CopilotArchitectureTest {
             "com.fasterxml.jackson..",
             "tools.jackson..",
             "io.micrometer..",
-            "io.modelcontextprotocol..")
+            "io.modelcontextprotocol..",
+            "com.openai..",
+            "com.anthropic..",
+            "dev.langchain4j..")
         .because("the Copilot module must remain framework and transport independent")
         .check(COPILOT_CLASSES);
   }
