@@ -12,3 +12,4 @@ Each decision documents its context, considered alternatives, consequences, and 
 - [`0006`](0006-add-audited-operations-outbox-recovery.md) — add audited Operations outbox recovery
 - [`0007`](0007-expose-copilot-tools-through-stateless-mcp.md) — expose Copilot tools through a stateless MCP inbound adapter
 - [`0008`](0008-add-provider-neutral-llm-copilot-orchestration.md) — add provider-neutral LLM Copilot orchestration
+- [`0009`](0009-add-durable-copilot-execution-audit.md) — add durable Copilot execution audit

@@ -56,6 +56,12 @@
 
     <dependency>
       <groupId>io.github.khaledshawki.eoc</groupId>
+      <artifactId>audit</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>io.github.khaledshawki.eoc</groupId>
       <artifactId>copilot</artifactId>
       <version>${project.version}</version>
     </dependency>

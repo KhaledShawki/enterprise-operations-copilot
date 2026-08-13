@@ -1,10 +1,13 @@
 package io.github.khaledshawki.eoc.platform.copilot.configuration;
 
+import io.github.khaledshawki.eoc.audit.application.port.in.RecordCopilotExecutionAuditUseCase;
 import io.github.khaledshawki.eoc.copilot.application.port.in.AskCopilotUseCase;
 import io.github.khaledshawki.eoc.copilot.application.port.in.ExecuteCopilotToolUseCase;
 import io.github.khaledshawki.eoc.copilot.application.port.out.CopilotModelPort;
 import io.github.khaledshawki.eoc.copilot.application.service.CopilotOrchestrationService;
 import io.github.khaledshawki.eoc.platform.copilot.adapter.out.llm.SpringAiCopilotModelAdapter;
+import io.github.khaledshawki.eoc.platform.integration.copilot.audit.AuditedAskCopilotUseCase;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.springframework.ai.chat.model.ChatModel;
@@ -36,8 +39,15 @@ public class CopilotLlmConfiguration {
   }
 
   @Bean
-  AskCopilotUseCase askCopilotUseCase(
+  CopilotOrchestrationService copilotOrchestrationService(
       CopilotModelPort modelPort, ExecuteCopilotToolUseCase executeCopilotToolUseCase) {
     return new CopilotOrchestrationService(modelPort, executeCopilotToolUseCase);
+  }
+
+  @Bean
+  AskCopilotUseCase askCopilotUseCase(
+      CopilotOrchestrationService orchestrationService,
+      RecordCopilotExecutionAuditUseCase auditUseCase) {
+    return new AuditedAskCopilotUseCase(orchestrationService, auditUseCase, UUID::randomUUID);
   }
 }
