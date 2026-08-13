@@ -32,7 +32,8 @@ class CopilotArchitectureTest {
             "org.apache.kafka..",
             "com.fasterxml.jackson..",
             "tools.jackson..",
-            "io.micrometer..")
+            "io.micrometer..",
+            "io.modelcontextprotocol..")
         .because("the Copilot module must remain framework and transport independent")
         .check(COPILOT_CLASSES);
   }
