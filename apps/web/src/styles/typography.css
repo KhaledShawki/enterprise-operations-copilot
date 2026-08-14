@@ -1,0 +1,19 @@
+html {
+  font-family: var(--eoc-font-ui);
+  font-size: 100%;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  color: var(--eoc-color-text-primary);
+  font-size: var(--eoc-font-size-md);
+  line-height: 1.5;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--eoc-font-mono);
+}
