@@ -1,0 +1,17 @@
+@import './styles/tokens.css';
+@import './styles/reset.css';
+@import './styles/typography.css';
+
+html,
+body {
+  background: var(--eoc-color-surface-canvas);
+}
+
+:focus-visible {
+  outline: 3px solid var(--eoc-color-focus-ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--eoc-color-action-primary) 22%, transparent);
+}

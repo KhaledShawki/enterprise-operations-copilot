@@ -1,0 +1,272 @@
+:host {
+  display: block;
+  min-block-size: 100dvh;
+}
+
+.skip-link {
+  position: fixed;
+  inset-block-start: var(--eoc-space-3);
+  inset-inline-start: var(--eoc-space-3);
+  z-index: var(--eoc-z-overlay);
+  padding: var(--eoc-space-2) var(--eoc-space-3);
+  border-radius: var(--eoc-radius-sm);
+  background: var(--eoc-color-action-primary);
+  color: var(--eoc-color-text-on-action);
+  font-weight: 650;
+  text-decoration: none;
+  transform: translateY(calc(-100% - var(--eoc-space-5)));
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+.shell {
+  display: grid;
+  min-block-size: 100dvh;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  background: var(--eoc-color-surface-canvas);
+}
+
+.navigation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eoc-space-6);
+  padding: var(--eoc-space-5) var(--eoc-space-4);
+  border-inline-end: 1px solid var(--eoc-color-navigation-border);
+  background: var(--eoc-color-navigation-surface);
+  color: var(--eoc-color-navigation-text);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--eoc-space-3);
+  min-block-size: 2.5rem;
+  padding-inline: var(--eoc-space-2);
+}
+
+.brand-mark {
+  display: grid;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--eoc-color-navigation-accent-border);
+  border-radius: var(--eoc-radius-md);
+  background: var(--eoc-color-navigation-accent-surface);
+  color: var(--eoc-color-navigation-text);
+  font-size: var(--eoc-font-size-xs);
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.brand-name {
+  font-size: var(--eoc-font-size-md);
+  font-weight: 720;
+  letter-spacing: 0.03em;
+}
+
+.navigation-items {
+  display: grid;
+  gap: var(--eoc-space-1);
+}
+
+.navigation-item {
+  display: flex;
+  align-items: center;
+  gap: var(--eoc-space-3);
+  min-block-size: 2.75rem;
+  padding: 0 var(--eoc-space-3);
+  border-radius: var(--eoc-radius-md);
+  background: var(--eoc-color-navigation-active-surface);
+  color: var(--eoc-color-navigation-text);
+  font-size: var(--eoc-font-size-sm);
+  font-weight: 620;
+  text-decoration: none;
+}
+
+.navigation-indicator {
+  inline-size: 0.25rem;
+  block-size: 1.25rem;
+  border-radius: var(--eoc-radius-pill);
+  background: var(--eoc-color-navigation-active-indicator);
+}
+
+.workspace {
+  min-inline-size: 0;
+}
+
+.topbar {
+  display: flex;
+  min-block-size: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eoc-space-4);
+  padding: var(--eoc-space-3) clamp(var(--eoc-space-4), 3vw, var(--eoc-space-6));
+  border-block-end: 1px solid var(--eoc-color-border-default);
+  background: var(--eoc-color-surface-default);
+}
+
+.product-name,
+.product-context,
+.eyebrow,
+.panel-kicker,
+.intro-copy,
+.foundation-panel p {
+  margin: 0;
+}
+
+.product-name {
+  color: var(--eoc-color-text-primary);
+  font-size: var(--eoc-font-size-sm);
+  font-weight: 680;
+}
+
+.product-context {
+  margin-block-start: 0.125rem;
+  color: var(--eoc-color-text-secondary);
+  font-size: var(--eoc-font-size-xs);
+}
+
+.foundation-status {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 1.75rem;
+  padding-inline: var(--eoc-space-2);
+  border: 1px solid var(--eoc-color-border-default);
+  border-radius: var(--eoc-radius-pill);
+  background: var(--eoc-color-surface-subtle);
+  color: var(--eoc-color-text-secondary);
+  font-size: var(--eoc-font-size-xs);
+  font-weight: 620;
+}
+
+.content {
+  inline-size: min(100%, 90rem);
+  margin-inline: auto;
+  padding: clamp(var(--eoc-space-6), 5vw, var(--eoc-space-8));
+  outline: none;
+}
+
+.content:focus-visible {
+  outline: 3px solid var(--eoc-color-focus-ring);
+  outline-offset: -3px;
+}
+
+.intro {
+  max-inline-size: 46rem;
+}
+
+.eyebrow,
+.panel-kicker {
+  color: var(--eoc-color-action-primary);
+  font-size: var(--eoc-font-size-xs);
+  font-weight: 720;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  color: var(--eoc-color-text-primary);
+}
+
+h1 {
+  margin: var(--eoc-space-2) 0 0;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 690;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.intro-copy {
+  margin-block-start: var(--eoc-space-4);
+  color: var(--eoc-color-text-secondary);
+  font-size: var(--eoc-font-size-lg);
+  line-height: 1.65;
+}
+
+.foundation-panel {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.7fr) minmax(16rem, 1fr);
+  gap: clamp(var(--eoc-space-5), 4vw, var(--eoc-space-7));
+  margin-block-start: clamp(var(--eoc-space-7), 8vw, var(--eoc-space-9));
+  padding: clamp(var(--eoc-space-5), 4vw, var(--eoc-space-6));
+  border: 1px solid var(--eoc-color-border-default);
+  border-radius: var(--eoc-radius-lg);
+  background: var(--eoc-color-surface-default);
+  box-shadow: var(--eoc-shadow-sm);
+}
+
+.foundation-panel h2 {
+  margin: var(--eoc-space-2) 0 0;
+  font-size: var(--eoc-font-size-xl);
+  line-height: 1.25;
+}
+
+.foundation-panel > p {
+  align-self: center;
+  color: var(--eoc-color-text-secondary);
+  line-height: 1.7;
+}
+
+@media (max-width: 52rem) {
+  .shell {
+    grid-template-columns: 4.75rem minmax(0, 1fr);
+  }
+
+  .navigation {
+    align-items: center;
+    padding-inline: var(--eoc-space-2);
+  }
+
+  .brand-name,
+  .navigation-item {
+    font-size: 0;
+  }
+
+  .navigation-item {
+    inline-size: 2.75rem;
+    justify-content: center;
+    padding: 0;
+  }
+}
+
+@media (max-width: 40rem) {
+  .shell {
+    display: block;
+  }
+
+  .navigation {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--eoc-space-3) var(--eoc-space-4);
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--eoc-color-navigation-border);
+  }
+
+  .navigation-items {
+    display: flex;
+  }
+
+  .navigation-item {
+    inline-size: auto;
+    padding-inline: var(--eoc-space-3);
+    font-size: var(--eoc-font-size-xs);
+  }
+
+  .content {
+    padding: var(--eoc-space-6) var(--eoc-space-4);
+  }
+
+  .foundation-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skip-link {
+    transition: transform var(--eoc-motion-fast) var(--eoc-motion-ease);
+  }
+}

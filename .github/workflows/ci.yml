@@ -63,6 +63,40 @@ jobs:
           )" = "10001:10001"
           docker run --rm --entrypoint java eoc/platform-service:test -version
 
+  web:
+    name: Web verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Lint web application
+        run: npm run lint
+
+      - name: Test web application
+        run: npm test
+
+      - name: Build web application
+        run: npm run build
+
   verify:
     name: Maven verify
     runs-on: ubuntu-latest

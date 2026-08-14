@@ -1,0 +1,65 @@
+:root {
+  color-scheme: light;
+
+  --eoc-font-ui:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --eoc-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --eoc-font-size-xs: 0.75rem;
+  --eoc-font-size-sm: 0.875rem;
+  --eoc-font-size-md: 1rem;
+  --eoc-font-size-lg: 1.125rem;
+  --eoc-font-size-xl: 1.5rem;
+
+  --eoc-space-1: 0.25rem;
+  --eoc-space-2: 0.5rem;
+  --eoc-space-3: 0.75rem;
+  --eoc-space-4: 1rem;
+  --eoc-space-5: 1.5rem;
+  --eoc-space-6: 2rem;
+  --eoc-space-7: 3rem;
+  --eoc-space-8: 4rem;
+  --eoc-space-9: 6rem;
+
+  --eoc-radius-sm: 0.375rem;
+  --eoc-radius-md: 0.625rem;
+  --eoc-radius-lg: 0.875rem;
+  --eoc-radius-pill: 999rem;
+
+  --eoc-shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05), 0 4px 12px rgb(16 24 40 / 0.04);
+
+  --eoc-motion-fast: 120ms;
+  --eoc-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --eoc-z-overlay: 1000;
+
+  --eoc-color-surface-canvas: #f4f6f8;
+  --eoc-color-surface-default: #ffffff;
+  --eoc-color-surface-subtle: #eef2f5;
+
+  --eoc-color-text-primary: #182230;
+  --eoc-color-text-secondary: #5d6877;
+  --eoc-color-text-disabled: #7f8a99;
+  --eoc-color-text-on-action: #ffffff;
+
+  --eoc-color-border-default: #d0d7de;
+  --eoc-color-border-strong: #a8b3c0;
+
+  --eoc-color-action-primary: #215ea8;
+  --eoc-color-action-primary-hover: #184d8f;
+  --eoc-color-action-primary-active: #123d73;
+  --eoc-color-focus-ring: #2563eb;
+
+  --eoc-color-status-success: #0f766e;
+  --eoc-color-status-warning: #a16207;
+  --eoc-color-status-danger: #b42318;
+  --eoc-color-status-info: #175cd3;
+
+  --eoc-color-navigation-surface: #111c2e;
+  --eoc-color-navigation-border: #27364b;
+  --eoc-color-navigation-text: #f4f7fb;
+  --eoc-color-navigation-accent-surface: #1e3048;
+  --eoc-color-navigation-accent-border: #40536d;
+  --eoc-color-navigation-active-surface: #1a2b43;
+  --eoc-color-navigation-active-indicator: #73a9e8;
+}
