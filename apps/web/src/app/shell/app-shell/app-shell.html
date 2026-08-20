@@ -8,10 +8,12 @@
     </div>
 
     <nav class="navigation-items" aria-label="Workspace">
-      <a class="navigation-item" routerLink="/" aria-current="page">
-        <span class="navigation-indicator" aria-hidden="true"></span>
-        Workspace
-      </a>
+      @if (activeTenant(); as tenant) {
+        <a class="navigation-item" [routerLink]="['/t', tenant.tenantKey]" aria-current="page">
+          <span class="navigation-indicator" aria-hidden="true"></span>
+          Workspace
+        </a>
+      }
     </nav>
   </aside>
 
@@ -19,28 +21,45 @@
     <header class="topbar">
       <div>
         <p class="product-name">Enterprise Operations Copilot</p>
-        <p class="product-context">Operational workspace</p>
+        <p class="product-context">{{ activeTenant()?.displayName ?? 'Tenant workspace' }}</p>
       </div>
-      <span class="foundation-status">Foundation</span>
+
+      <div class="session-controls">
+        <label class="tenant-control" for="tenant-switcher">
+          <span class="product-context">Tenant</span>
+          <select id="tenant-switcher" [value]="activeTenant()?.tenantKey ?? ''" (change)="onTenantChange($event)">
+            @for (tenant of tenants(); track tenant.tenantId) {
+              <option [value]="tenant.tenantKey">{{ tenant.displayName }}</option>
+            }
+          </select>
+        </label>
+
+        @if (csrf(); as token) {
+          <form method="post" action="/logout">
+            <input type="hidden" [name]="token.parameterName" [value]="token.token" />
+            <button class="sign-out" type="submit">Sign out</button>
+          </form>
+        }
+      </div>
     </header>
 
-    <main id="main-content" class="content" tabindex="-1">
+    <main id="main-content" class="content" tabindex="-1" data-route-focus>
       <section class="intro" aria-labelledby="workspace-title">
         <p class="eyebrow">Enterprise operations</p>
         <h1 id="workspace-title">Operational workspace</h1>
         <p class="intro-copy">
-          A focused workspace for operational data, traceable evidence, and grounded decisions.
+          {{ activeTenant()?.displayName }} is selected from your authenticated tenant access.
         </p>
       </section>
 
       <section class="foundation-panel" aria-labelledby="foundation-title">
         <div>
-          <p class="panel-kicker">Frontend foundation</p>
+          <p class="panel-kicker">Authenticated context</p>
           <h2 id="foundation-title">Ready for tenant-scoped workflows</h2>
         </div>
         <p>
-          Authentication and the first operational vertical slice will build on this shell without
-          changing its core application boundaries.
+          Browser authentication is isolated behind the web BFF. Business features can use the
+          selected tenant without owning OAuth tokens or identity-provider integration.
         </p>
       </section>
     </main>

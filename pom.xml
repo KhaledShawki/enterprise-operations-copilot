@@ -66,6 +66,7 @@
     <module>modules/audit</module>
     <module>modules/copilot</module>
     <module>services/platform-service</module>
+    <module>services/web-bff</module>
   </modules>
 
   <properties>

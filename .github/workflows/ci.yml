@@ -63,6 +63,33 @@ jobs:
           )" = "10001:10001"
           docker run --rm --entrypoint java eoc/platform-service:test -version
 
+  bff-container:
+    name: Web BFF container
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build Web BFF image
+        run: >-
+          docker build
+          --file services/web-bff/Dockerfile
+          --tag eoc/web-bff:test
+          .
+
+      - name: Verify Web BFF image
+        run: |
+          test "$(
+            docker image inspect \
+              --format '{{.Config.User}}' \
+              eoc/web-bff:test
+          )" = "10001:10001"
+          docker run --rm --entrypoint java eoc/web-bff:test -version
+
   web:
     name: Web verify
     runs-on: ubuntu-latest
