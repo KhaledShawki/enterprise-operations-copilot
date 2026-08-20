@@ -1,0 +1,8 @@
+.session-controls { display: flex; align-items: end; gap: var(--eoc-space-3); }
+.tenant-control { display: grid; gap: var(--eoc-space-1); }
+.tenant-control select, .sign-out { min-block-size: 2.5rem; border: 1px solid var(--eoc-color-border-default); border-radius: var(--eoc-radius-md); background: var(--eoc-color-surface-default); color: var(--eoc-color-text-primary); font: inherit; }
+.tenant-control select { min-inline-size: 12rem; padding-inline: var(--eoc-space-3); }
+.sign-out { padding-inline: var(--eoc-space-3); font-weight: 620; cursor: pointer; }
+.tenant-control select:focus-visible, .sign-out:focus-visible { outline: 3px solid var(--eoc-color-focus-ring); outline-offset: 2px; }
+.session-controls form { margin: 0; }
+@media (max-width: 40rem) { .topbar { align-items: flex-start; flex-direction: column; } .session-controls { inline-size: 100%; align-items: stretch; } .tenant-control { flex: 1; } .tenant-control select { inline-size: 100%; min-inline-size: 0; } }

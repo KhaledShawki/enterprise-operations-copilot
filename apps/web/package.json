@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "ng serve --host 127.0.0.1",
+    "start": "ng serve --host localhost",
     "build": "ng build",
     "test": "ng test --watch=false",
     "test:watch": "ng test",

@@ -41,11 +41,13 @@
     },
     {
       "clientId": "eoc-web",
-      "name": "EOC Web Application",
-      "description": "Public browser client using Authorization Code with PKCE",
+      "name": "EOC Web BFF",
+      "description": "Confidential web BFF using Authorization Code with PKCE",
       "enabled": true,
       "protocol": "openid-connect",
-      "publicClient": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${EOC_WEB_BFF_CLIENT_SECRET}",
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
@@ -54,15 +56,13 @@
       "rootUrl": "http://localhost:4200",
       "baseUrl": "/",
       "redirectUris": [
-        "http://localhost:4200/*"
+        "http://localhost:4200/login/oauth2/code/eoc-web"
       ],
-      "webOrigins": [
-        "http://localhost:4200"
-      ],
+      "webOrigins": [],
 
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:4200/*"
+        "post.logout.redirect.uris": "http://localhost:4200/"
       },
 
       "protocolMappers": [

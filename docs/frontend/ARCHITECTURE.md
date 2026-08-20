@@ -4,7 +4,6 @@
 **Version:** 0.1
 **Status:** Baseline architecture
 **Applies to:** `apps/web`
-**Backend baseline:** `main@d9b719e`
 **Last updated:** 2026-08-14
 
 ---
@@ -397,7 +396,9 @@ feature data access
       ↓
 HttpClient
       ↓
-Spring Boot
+Web BFF (same origin)
+      ↓
+Platform service
 ```
 
 ## 9.1 Interceptors
@@ -407,7 +408,7 @@ Cross-cutting HTTP behavior SHOULD use functional Angular interceptors.
 Expected concerns:
 
 ```text
-Bearer token
+CSRF header for unsafe same-origin BFF/API requests
 correlation/trace propagation later
 transport normalization where appropriate
 ```
@@ -448,7 +449,7 @@ Avoid ceremonial one-to-one mappers.
 
 ## 9.5 Configuration
 
-Feature code MUST NOT hard-code API or identity-provider origins.
+Feature code MUST NOT hard-code API or identity-provider origins. Angular MUST NOT know the identity-provider origin.
 
 One platform configuration boundary owns environment-specific browser configuration.
 
@@ -460,43 +461,50 @@ Browser-visible configuration is public; secrets never belong in it.
 
 # 10. Authentication and Security
 
-Authentication is implemented in the Authentication + Tenant Context slice, but these boundaries are fixed now.
+Authentication is implemented through a Backend-for-Frontend (BFF).
 
 Browser authentication model:
 
 ```text
-OpenID Connect
-Authorization Code
-PKCE S256
-public browser client
+Angular browser
+   ↓ same-origin session
+Web BFF
+   ↓ OpenID Connect Authorization Code + PKCE
+Keycloak
+
+Web BFF
+   ↓ bearer access token
+Platform service
 ```
 
 Rules:
 
-- The browser MUST NOT contain a client secret.
-- Implicit flow is not part of the design.
-- Password/direct-grant authentication is not part of the design.
-- The exact OIDC/Keycloak library is selected during the authentication slice.
-- Feature code MUST NOT depend directly on the identity-provider SDK.
-- Authentication belongs behind a platform boundary.
-- Access/refresh tokens SHOULD remain in memory.
-- Access/refresh tokens MUST NOT be deliberately persisted in `localStorage` or `sessionStorage` without a documented threat-model decision.
-- This does not prohibit the selected OIDC implementation from temporarily storing narrowly scoped protocol transaction state such as `state`, `nonce`, or PKCE/redirect correlation data when required for a secure authorization flow.
-- Temporary OIDC transaction state MUST NOT be treated as general application session storage and SHOULD be removed/expired according to the selected integration's secure protocol behavior.
-- Tokens MUST NOT appear in URLs, application logs, analytics payloads, or user-visible diagnostics.
-- Frontend role checks MAY improve UX; backend authorization remains authoritative.
-- Route guards are navigation UX, not security controls.
+- Angular MUST NOT integrate directly with Keycloak or another identity-provider SDK.
+- Angular MUST NOT receive, store, refresh, log, or expose OAuth access or refresh tokens.
+- The BFF is a confidential OAuth client and owns its client secret, authorization-code exchange, token refresh, and authorized-client persistence.
+- PKCE S256 remains required as defense in depth for the authorization-code flow.
+- The browser receives only an opaque server session cookie.
+- The session cookie MUST be `HttpOnly`, host-only, and scoped to `/`; production deployments MUST set `Secure`.
+- Local OIDC development uses `SameSite=Lax` so the top-level callback from the identity provider can carry the session cookie. CSRF protection remains mandatory.
+- Unsafe same-origin requests MUST carry the BFF-issued CSRF token.
+- Authentication/session state belongs behind an Angular `AuthSession` platform boundary.
+- The platform service remains a stateless OAuth2 resource server and performs authoritative authorization.
+- Route guards and frontend role checks are navigation/UX controls, not security boundaries.
+- OAuth tokens and client secrets MUST NOT appear in browser storage, URLs, application logs, analytics payloads, or user-visible diagnostics.
+- The initial BFF uses servlet `HttpSession` state. Before multi-instance deployment, session and authorized-client state MUST be externalized/shared (or an equivalent explicitly justified affinity design must be documented).
 
 Conceptual boundary:
 
 ```text
 Feature / Shell
       ↓
-AuthSession
+AuthSession + same-origin HTTP
       ↓
-OIDC integration
+Web BFF
       ↓
-Keycloak
+OIDC integration / Keycloak
+      ↓
+Bearer-secured platform service
 ```
 
 ---
@@ -506,8 +514,8 @@ Keycloak
 Authenticated boot flow:
 
 ```text
-OIDC session
-   ↓
+GET /bff/session
+   ↓ authenticated
 GET /api/v1/me
    ↓
 GET /api/v1/me/tenants
@@ -847,9 +855,10 @@ No NgRx, generated API client, complete design system, or business feature.
 ### #70 Authentication + Tenant Context
 
 ```text
-OIDC Code + PKCE
-AuthSession boundary
-token attachment/refresh
+confidential Web BFF + OIDC Code + PKCE
+HttpOnly server session + CSRF
+AuthSession boundary with no browser OAuth tokens
+server-side bearer attachment/refresh
 /api/v1/me
 /api/v1/me/tenants
 tenant routes/context/switcher
@@ -935,8 +944,8 @@ These rules are locked for the initial implementation:
 15. Components do not own cross-cutting HTTP/auth infrastructure.
 16. Prefer functional HTTP interceptors for cross-cutting transport behavior.
 17. Backend authorization remains authoritative.
-18. Browser auth uses Authorization Code + PKCE with a public client.
-19. Browser tokens are not deliberately persisted by default.
+18. Browser auth uses a confidential BFF with Authorization Code + PKCE.
+19. OAuth access/refresh tokens remain server-side and are never exposed to Angular.
 20. Features are lazy-loaded by route.
 21. Shared UI emerges from real product repetition or stable semantics.
 22. Typed API contracts are required; generation is optional.

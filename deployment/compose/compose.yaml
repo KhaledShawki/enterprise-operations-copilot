@@ -79,6 +79,8 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
 
+      EOC_WEB_BFF_CLIENT_SECRET: "${EOC_WEB_BFF_CLIENT_SECRET:?EOC_WEB_BFF_CLIENT_SECRET is required}"
+
       EOC_DEV_USER_USERNAME: "${EOC_DEV_USER_USERNAME:?EOC_DEV_USER_USERNAME is required}"
       EOC_DEV_USER_EMAIL: "${EOC_DEV_USER_EMAIL:?EOC_DEV_USER_EMAIL is required}"
       EOC_DEV_USER_PASSWORD: "${EOC_DEV_USER_PASSWORD:?EOC_DEV_USER_PASSWORD is required}"
@@ -252,6 +254,47 @@ services:
         condition: service_healthy
       kafka-topic-init:
         condition: service_completed_successfully
+
+    networks:
+      - platform
+      - identity
+
+  web-bff:
+    image: eoc/web-bff:local
+
+    build:
+      context: ../..
+      dockerfile: services/web-bff/Dockerfile
+
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    environment:
+      EOC_WEB_BFF_CLIENT_SECRET: "${EOC_WEB_BFF_CLIENT_SECRET:?EOC_WEB_BFF_CLIENT_SECRET is required}"
+      EOC_WEB_BFF_ISSUER_URI: "http://localhost:8180/realms/eoc"
+      EOC_WEB_BFF_AUTHORIZATION_URI: "http://localhost:8180/realms/eoc/protocol/openid-connect/auth"
+      EOC_WEB_BFF_TOKEN_URI: "http://keycloak:8080/realms/eoc/protocol/openid-connect/token"
+      EOC_WEB_BFF_JWK_SET_URI: "http://keycloak:8080/realms/eoc/protocol/openid-connect/certs"
+      EOC_WEB_BFF_END_SESSION_URI: "http://localhost:8180/realms/eoc/protocol/openid-connect/logout"
+      EOC_WEB_BFF_PLATFORM_API_BASE_URL: "http://platform-service:8080"
+      EOC_WEB_BFF_SESSION_COOKIE_SECURE: "${EOC_WEB_BFF_SESSION_COOKIE_SECURE:-false}"
+
+    ports:
+      - "127.0.0.1:${WEB_BFF_HTTP_PORT:?WEB_BFF_HTTP_PORT is required}:8081"
+
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      platform-service:
+        condition: service_healthy
 
     networks:
       - platform

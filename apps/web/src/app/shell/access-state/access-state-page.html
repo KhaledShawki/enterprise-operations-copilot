@@ -1,0 +1,17 @@
+<main class="access-state" tabindex="-1" data-route-focus>
+  <section class="access-card" aria-labelledby="access-state-title">
+    <p class="eyebrow">{{ content.eyebrow }}</p>
+    <h1 id="access-state-title">{{ content.title }}</h1>
+    <p>{{ content.description }}</p>
+    <div class="actions">
+      @if (content.canReturn) { <a routerLink="/">Go to available workspace</a> }
+      @if (content.canRetry) { <button type="button" (click)="retry()">Try again</button> }
+      @if (authSession.csrf(); as token) {
+        <form method="post" action="/logout">
+          <input type="hidden" [name]="token.parameterName" [value]="token.token" />
+          <button type="submit">Sign out</button>
+        </form>
+      }
+    </div>
+  </section>
+</main>

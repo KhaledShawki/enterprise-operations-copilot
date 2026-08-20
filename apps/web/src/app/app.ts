@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
 @Component({
@@ -8,4 +9,12 @@ import { RouterOutlet } from '@angular/router';
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class App {}
+export class App {
+  readonly #document = inject(DOCUMENT);
+
+  focusActivatedRoute(): void {
+    queueMicrotask(() => {
+      this.#document.querySelector<HTMLElement>('[data-route-focus]')?.focus();
+    });
+  }
+}
