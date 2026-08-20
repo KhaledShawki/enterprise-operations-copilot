@@ -8,6 +8,7 @@ COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 COPY modules/ modules/
 COPY services/platform-service/pom.xml services/platform-service/pom.xml
+COPY services/web-bff/pom.xml services/web-bff/pom.xml
 COPY services/platform-service/src/ services/platform-service/src/
 
 RUN --mount=type=cache,target=/root/.m2 \
