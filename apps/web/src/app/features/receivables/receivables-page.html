@@ -1,0 +1,284 @@
+<section class="receivables-page" aria-labelledby="receivables-title">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Analytics</p>
+      <h1 id="receivables-title">Receivables</h1>
+      <p class="page-description">
+        Tenant-scoped outstanding invoices, overdue exposure, and aging evidence.
+      </p>
+    </div>
+
+    @if (refreshing()) {
+      <p class="refresh-status" role="status" aria-live="polite">Refreshing data…</p>
+    }
+  </header>
+
+  <section class="filters-panel" aria-labelledby="receivables-filters-title">
+    <div class="filters-heading">
+      <div>
+        <p class="section-kicker">View controls</p>
+        <h2 id="receivables-filters-title">Filters and ordering</h2>
+      </div>
+      @if (hasActiveFilters()) {
+        <button class="secondary-action" type="button" (click)="clearFilters()">Clear filters</button>
+      }
+    </div>
+
+    <div class="filters-grid">
+      <label>
+        <span>Business date</span>
+        <input
+          id="receivables-business-date"
+          type="date"
+          [value]="filters().businessDate ?? ''"
+          (change)="onBusinessDateChange($event)"
+        />
+      </label>
+
+      <label>
+        <span>Status</span>
+        <select id="receivable-status" [value]="filters().status ?? ''" (change)="onStatusChange($event)">
+          <option value="">All statuses</option>
+          <option value="OPEN">Open</option>
+          <option value="PARTIALLY_PAID">Partially paid</option>
+          <option value="PAID">Paid</option>
+          <option value="CANCELLED">Cancelled</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Overdue</span>
+        <select
+          id="receivable-overdue"
+          [value]="filters().overdue === null ? '' : filters().overdue"
+          (change)="onOverdueChange($event)"
+        >
+          <option value="">All invoices</option>
+          <option value="true">Overdue only</option>
+          <option value="false">Not overdue</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Sort by</span>
+        <select id="receivable-sort" [value]="filters().sort" (change)="onSortChange($event)">
+          <option value="DUE_DATE">Due date</option>
+          <option value="ISSUE_DATE">Issue date</option>
+          <option value="OUTSTANDING_AMOUNT">Outstanding amount</option>
+          <option value="INVOICE_NUMBER">Invoice number</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Direction</span>
+        <select
+          id="receivable-direction"
+          [value]="filters().direction"
+          (change)="onDirectionChange($event)"
+        >
+          <option value="ASC">Ascending</option>
+          <option value="DESC">Descending</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Rows</span>
+        <select id="receivable-size" [value]="filters().size" (change)="onPageSizeChange($event)">
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  @if (state() === 'loading') {
+    <section class="state-panel" aria-labelledby="receivables-loading-title">
+      <p class="section-kicker">Loading</p>
+      <h2 id="receivables-loading-title">Loading receivables</h2>
+      <p>Retrieving the current tenant projection and operational summary.</p>
+    </section>
+  } @else if (state() === 'failed') {
+    <section class="state-panel state-panel-error" role="alert" aria-labelledby="receivables-error-title">
+      <p class="section-kicker">Unavailable</p>
+      <h2 id="receivables-error-title">{{ problem()?.message ?? 'Receivables are unavailable' }}</h2>
+      <p>The request could not be completed. No previous receivables data is being shown.</p>
+      <button class="primary-action" type="button" (click)="retry()">Try again</button>
+    </section>
+  } @else {
+    @if (state() === 'partial') {
+      <div class="notice notice-warning" role="status">
+        Part of the receivables view is unavailable. Available data is shown without inventing the missing section.
+      </div>
+    }
+
+    @if (state() === 'stale') {
+      <div class="notice notice-warning" role="status">
+        Refresh failed. The last successfully loaded data remains visible and may not match the current filters.
+        <button class="inline-action" type="button" (click)="retry()">Retry</button>
+      </div>
+    }
+
+    @if (summary(); as summary) {
+      <section class="summary-section" aria-labelledby="receivables-summary-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">As of {{ summary.businessDate }}</p>
+            <h2 id="receivables-summary-title">Operational summary</h2>
+          </div>
+        </div>
+
+        <p class="summary-scope">
+          Summary totals are tenant-wide for the selected business date. Status and overdue filters
+          apply to the invoice list below.
+        </p>
+
+        <div class="metric-grid">
+          <article class="metric-card">
+            <span>Total invoices</span>
+            <strong>{{ summary.invoiceCount }}</strong>
+          </article>
+          <article class="metric-card">
+            <span>Open invoices</span>
+            <strong>{{ summary.openCount }}</strong>
+          </article>
+          <article class="metric-card">
+            <span>Overdue invoices</span>
+            <strong>{{ summary.overdueCount }}</strong>
+          </article>
+        </div>
+
+        @if (summary.currencies.length > 0) {
+          <div class="table-wrap">
+            <table>
+              <caption>Outstanding and aging totals by currency</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Currency</th>
+                  <th scope="col">Outstanding</th>
+                  <th scope="col">Overdue</th>
+                  <th scope="col">Current</th>
+                  <th scope="col">1–30 days</th>
+                  <th scope="col">31–60 days</th>
+                  <th scope="col">61–90 days</th>
+                  <th scope="col">91+ days</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (currency of summary.currencies; track currency.currency) {
+                  <tr>
+                    <th scope="row">{{ currency.currency }}</th>
+                    <td>{{ formatMoney(currency.outstandingAmount, currency.currency) }}</td>
+                    <td>{{ formatMoney(currency.overdueAmount, currency.currency) }}</td>
+                    <td>{{ formatMoney(currency.aging.currentAmount, currency.currency) }}</td>
+                    <td>{{ formatMoney(currency.aging.days1To30OverdueAmount, currency.currency) }}</td>
+                    <td>{{ formatMoney(currency.aging.days31To60OverdueAmount, currency.currency) }}</td>
+                    <td>{{ formatMoney(currency.aging.days61To90OverdueAmount, currency.currency) }}</td>
+                    <td>{{ formatMoney(currency.aging.days91PlusOverdueAmount, currency.currency) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    } @else if (state() === 'partial') {
+      <section class="state-panel compact-state" aria-labelledby="summary-unavailable-title">
+        <h2 id="summary-unavailable-title">Summary unavailable</h2>
+        <p>The receivables list is available, but summary totals could not be loaded.</p>
+      </section>
+    }
+
+    @if (page(); as page) {
+      <section class="list-section" aria-labelledby="receivables-list-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">{{ page.totalElements }} matching invoices</p>
+            <h2 id="receivables-list-title">Invoice receivables</h2>
+          </div>
+          <p class="business-date">Business date {{ page.businessDate }}</p>
+        </div>
+
+        @if (page.receivables.length === 0) {
+          <div class="empty-state">
+            <h3>{{ hasActiveFilters() ? 'No receivables match these filters' : 'No receivables yet' }}</h3>
+            <p>
+              {{
+                hasActiveFilters()
+                  ? 'Change or clear the current filters to broaden the result set.'
+                  : 'No receivable projections are available for this tenant.'
+              }}
+            </p>
+          </div>
+        } @else {
+          <div class="table-wrap">
+            <table>
+              <caption>Receivables matching the current URL filters</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Invoice</th>
+                  <th scope="col">Customer</th>
+                  <th scope="col">Due date</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (receivable of page.receivables; track receivable.id) {
+                  <tr>
+                    <td class="invoice-number">{{ receivable.invoiceNumber }}</td>
+                    <td>
+                      <span>{{ customerLabel(receivable) }}</span>
+                      @if (receivable.customer.projected) {
+                        <span class="secondary-detail">Projected</span>
+                      }
+                    </td>
+                    <td>
+                      {{ receivable.dueDate }}
+                      @if (receivable.overdue) {
+                        <span class="secondary-detail overdue-text">Overdue</span>
+                      }
+                    </td>
+                    <td>
+                      <span class="status-badge" [class.status-overdue]="receivable.overdue">
+                        {{ statusLabel(receivable.status) }}
+                      </span>
+                    </td>
+                    <td class="money-cell">
+                      {{ formatMoney(receivable.outstandingAmount.amount, receivable.outstandingAmount.currency) }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        <nav class="pagination" aria-label="Receivables pages">
+          <button
+            class="secondary-action"
+            type="button"
+            [disabled]="!page.hasPrevious"
+            (click)="previousPage()"
+          >
+            Previous
+          </button>
+          <span>Page {{ page.page + 1 }} of {{ page.totalPages || 1 }}</span>
+          <button
+            class="secondary-action"
+            type="button"
+            [disabled]="!page.hasNext"
+            (click)="nextPage()"
+          >
+            Next
+          </button>
+        </nav>
+      </section>
+    } @else if (state() === 'partial') {
+      <section class="state-panel compact-state" aria-labelledby="list-unavailable-title">
+        <h2 id="list-unavailable-title">Receivables list unavailable</h2>
+        <p>The operational summary is available, but the invoice list could not be loaded.</p>
+      </section>
+    }
+  }
+</section>

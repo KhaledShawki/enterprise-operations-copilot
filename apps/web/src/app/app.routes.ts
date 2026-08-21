@@ -19,7 +19,21 @@ export const routes: Routes = [
     canActivate: [activateTenantRoute],
     loadComponent: () =>
       import('./shell/app-shell/app-shell').then(({ AppShell }) => AppShell),
-    title: 'Workspace | Enterprise Operations Copilot',
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'receivables',
+      },
+      {
+        path: 'receivables',
+        loadComponent: () =>
+          import('./features/receivables/receivables-page').then(
+            ({ ReceivablesPage }) => ReceivablesPage,
+          ),
+        title: 'Receivables | Enterprise Operations Copilot',
+      },
+    ],
   },
   {
     path: 'no-tenant-access',

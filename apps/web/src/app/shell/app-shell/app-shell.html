@@ -9,9 +9,14 @@
 
     <nav class="navigation-items" aria-label="Workspace">
       @if (activeTenant(); as tenant) {
-        <a class="navigation-item" [routerLink]="['/t', tenant.tenantKey]" aria-current="page">
+        <a
+          class="navigation-item"
+          [routerLink]="['/t', tenant.tenantKey, 'receivables']"
+          routerLinkActive="navigation-item-active"
+          ariaCurrentWhenActive="page"
+        >
           <span class="navigation-indicator" aria-hidden="true"></span>
-          Workspace
+          Receivables
         </a>
       }
     </nav>
@@ -44,24 +49,7 @@
     </header>
 
     <main id="main-content" class="content" tabindex="-1" data-route-focus>
-      <section class="intro" aria-labelledby="workspace-title">
-        <p class="eyebrow">Enterprise operations</p>
-        <h1 id="workspace-title">Operational workspace</h1>
-        <p class="intro-copy">
-          {{ activeTenant()?.displayName }} is selected from your authenticated tenant access.
-        </p>
-      </section>
-
-      <section class="foundation-panel" aria-labelledby="foundation-title">
-        <div>
-          <p class="panel-kicker">Authenticated context</p>
-          <h2 id="foundation-title">Ready for tenant-scoped workflows</h2>
-        </div>
-        <p>
-          Browser authentication is isolated behind the web BFF. Business features can use the
-          selected tenant without owning OAuth tokens or identity-provider integration.
-        </p>
-      </section>
+      <router-outlet (activate)="focusMainContent()" />
     </main>
   </div>
 </div>

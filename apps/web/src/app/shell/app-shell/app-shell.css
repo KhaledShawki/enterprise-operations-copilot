@@ -78,11 +78,15 @@
   min-block-size: 2.75rem;
   padding: 0 var(--eoc-space-3);
   border-radius: var(--eoc-radius-md);
-  background: var(--eoc-color-navigation-active-surface);
+  background: transparent;
   color: var(--eoc-color-navigation-text);
   font-size: var(--eoc-font-size-sm);
   font-weight: 620;
   text-decoration: none;
+}
+
+.navigation-item-active {
+  background: var(--eoc-color-navigation-active-surface);
 }
 
 .navigation-indicator {
@@ -90,6 +94,11 @@
   block-size: 1.25rem;
   border-radius: var(--eoc-radius-pill);
   background: var(--eoc-color-navigation-active-indicator);
+  opacity: 0;
+}
+
+.navigation-item-active .navigation-indicator {
+  opacity: 1;
 }
 
 .workspace {
