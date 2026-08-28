@@ -14,3 +14,4 @@ Each decision documents its context, considered alternatives, consequences, and 
 - [`0008`](0008-add-provider-neutral-llm-copilot-orchestration.md) — add provider-neutral LLM Copilot orchestration
 - [`0009`](0009-add-durable-copilot-execution-audit.md) — add durable Copilot execution audit
 - [`0010`](0010-add-authenticated-copilot-question-http-api.md) — add an authenticated Copilot question HTTP API
+- [`0011`](0011-establish-external-evidence-lab.md) — establish an external evidence and reliability lab

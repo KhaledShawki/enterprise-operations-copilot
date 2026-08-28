@@ -80,6 +80,7 @@ services:
       KC_METRICS_ENABLED: "true"
 
       EOC_WEB_BFF_CLIENT_SECRET: "${EOC_WEB_BFF_CLIENT_SECRET:?EOC_WEB_BFF_CLIENT_SECRET is required}"
+      EOC_LAB_CLIENT_SECRET: "${EOC_LAB_CLIENT_SECRET:?EOC_LAB_CLIENT_SECRET is required}"
 
       EOC_DEV_USER_USERNAME: "${EOC_DEV_USER_USERNAME:?EOC_DEV_USER_USERNAME is required}"
       EOC_DEV_USER_EMAIL: "${EOC_DEV_USER_EMAIL:?EOC_DEV_USER_EMAIL is required}"
@@ -111,7 +112,10 @@ services:
       - identity
 
   kafka:
-    image: apache/kafka:4.2.1
+    image: eoc/kafka:local
+    build:
+      context: ../..
+      dockerfile: deployment/kafka/Dockerfile
     hostname: kafka
     restart: unless-stopped
 
@@ -131,11 +135,11 @@ services:
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: "1"
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-      KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"
+      KAFKA_LOG_DIRS: "/var/lib/eoc-kafka/data"
       CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
 
     volumes:
-      - kafka-data:/tmp/kraft-combined-logs
+      - kafka-data:/var/lib/eoc-kafka
 
     healthcheck:
       test:
