@@ -78,6 +78,34 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "eoc-lab",
+      "name": "EOC Evidence Lab",
+      "description": "Local-only confidential client for black-box evidence and reliability scenarios",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${EOC_LAB_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+
+      "protocolMappers": [
+        {
+          "name": "platform-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "platform-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
 
@@ -98,6 +126,14 @@
         }
       ],
 
+      "realmRoles": [
+        "platform-admin"
+      ]
+    },
+    {
+      "username": "service-account-eoc-lab",
+      "enabled": true,
+      "serviceAccountClientId": "eoc-lab",
       "realmRoles": [
         "platform-admin"
       ]

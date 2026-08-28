@@ -94,3 +94,6 @@ test-results/
 reports/
 allure-results/
 playwright-report/
+
+# Generated evidence lab runs
+evidence/runs/

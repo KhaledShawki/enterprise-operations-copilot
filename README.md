@@ -39,6 +39,20 @@ startup, health verification, migration checks, persistence behavior, and reset
 instructions. For identity-provider-only operation, use the
 [Local Keycloak runbook](docs/runbooks/local-keycloak.md).
 
+## Evidence lab
+
+EOC includes an external black-box evidence harness for reproducible system validation. After the
+local platform is running, validate the environment and execute the first authenticated smoke
+scenario with:
+
+```bash
+./scripts/eoc-lab doctor
+./scripts/eoc-lab run smoke
+```
+
+See the [Evidence Lab runbook](docs/runbooks/evidence-lab.md) for the trust boundary, generated
+artifacts, and verification commands.
+
 ## Documentation
 
 Architecture decisions, system design, and operational runbooks are maintained under [`docs`](docs).

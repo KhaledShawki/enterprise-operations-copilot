@@ -36,6 +36,100 @@ jobs:
           --file deployment/compose/compose.yaml
           config --quiet
 
+  evidence-lab:
+    name: Evidence lab verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
+      - name: Test evidence lab
+        env:
+          PYTHONPATH: tools/eoc-lab
+        run: python -m unittest discover -s tools/eoc-lab/tests -v
+
+      - name: Verify evidence lab CLI
+        run: ./scripts/eoc-lab --help >/dev/null
+
+  evidence-lab-system:
+    name: Evidence lab system smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [configuration, evidence-lab]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
+      - name: Prepare isolated lab environment
+        shell: bash
+        run: |
+          cp deployment/compose/.env.example deployment/compose/.env
+          lab_secret="$(openssl rand -hex 32)"
+          sed -i "s/^EOC_LAB_CLIENT_SECRET=.*/EOC_LAB_CLIENT_SECRET=${lab_secret}/" deployment/compose/.env
+
+      - name: Start local platform
+        continue-on-error: true
+        run: >-
+          docker compose
+          --env-file deployment/compose/.env
+          --file deployment/compose/compose.yaml
+          up --detach --build --wait --wait-timeout 240 platform-service web-bff
+
+      - name: Validate lab environment
+        continue-on-error: true
+        run: ./scripts/eoc-lab doctor
+
+      - name: Execute smoke scenario
+        run: ./scripts/eoc-lab run smoke
+
+      - name: Verify generated smoke evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          results = sorted(Path("evidence/runs").glob("*/result.json"))
+          if len(results) != 1:
+              raise SystemExit(f"expected one smoke result, found {len(results)}")
+          result = json.loads(results[0].read_text(encoding="utf-8"))
+          if result.get("status") != "PASS" or result.get("passed") is not True:
+              raise SystemExit(f"smoke evidence did not pass: {result}")
+          PY
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eoc-evidence-lab-smoke-${{ github.run_id }}
+          path: evidence/runs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Stop local platform
+        if: always()
+        run: >-
+          docker compose
+          --env-file deployment/compose/.env
+          --file deployment/compose/compose.yaml
+          down --volumes --remove-orphans
+
   container:
     name: Platform service container
     runs-on: ubuntu-latest
