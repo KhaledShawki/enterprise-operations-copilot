@@ -16,8 +16,11 @@ public record ConnectorEndpoint(URI value) {
     }
 
     String scheme = value.getScheme();
-    if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))) {
-      throw new IllegalArgumentException("Connector endpoint must use HTTP or HTTPS");
+    if (!("http".equalsIgnoreCase(scheme)
+        || "https".equalsIgnoreCase(scheme)
+        || "grpc".equalsIgnoreCase(scheme)
+        || "grpcs".equalsIgnoreCase(scheme))) {
+      throw new IllegalArgumentException("Connector endpoint uses an unsupported transport scheme");
     }
 
     if (value.getHost() == null || value.getHost().isBlank()) {

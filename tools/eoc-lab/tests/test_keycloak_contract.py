@@ -38,6 +38,40 @@ class EvidenceLabKeycloakContractTest(unittest.TestCase):
         self.assertEqual(["platform-admin"], user["realmRoles"])
         self.assertNotIn("credentials", user)
 
+    def test_workload_client_is_service_account_only_and_audienced_for_platform_api(self) -> None:
+        realm = json.loads(REALM_PATH.read_text(encoding="utf-8"))
+        client = next(
+            client for client in realm["clients"] if client["clientId"] == "eoc-lab-workload"
+        )
+
+        self.assertTrue(client["enabled"])
+        self.assertFalse(client["publicClient"])
+        self.assertTrue(client["serviceAccountsEnabled"])
+        self.assertFalse(client["standardFlowEnabled"])
+        self.assertFalse(client["implicitFlowEnabled"])
+        self.assertFalse(client["directAccessGrantsEnabled"])
+        self.assertEqual("${EOC_LAB_WORKLOAD_CLIENT_SECRET}", client["secret"])
+
+        audiences = [
+            mapper["config"].get("included.client.audience")
+            for mapper in client["protocolMappers"]
+            if mapper.get("protocolMapper") == "oidc-audience-mapper"
+        ]
+        self.assertIn("platform-api", audiences)
+
+    def test_workload_service_account_has_no_platform_wide_realm_role(self) -> None:
+        realm = json.loads(REALM_PATH.read_text(encoding="utf-8"))
+        user = next(
+            user
+            for user in realm["users"]
+            if user.get("serviceAccountClientId") == "eoc-lab-workload"
+        )
+
+        self.assertTrue(user["enabled"])
+        self.assertEqual("service-account-eoc-lab-workload", user["username"])
+        self.assertEqual([], user["realmRoles"])
+        self.assertNotIn("credentials", user)
+
 
 if __name__ == "__main__":
     unittest.main()

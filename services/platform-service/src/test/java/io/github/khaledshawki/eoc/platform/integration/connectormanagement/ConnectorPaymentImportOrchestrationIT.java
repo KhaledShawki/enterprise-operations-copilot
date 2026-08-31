@@ -10,6 +10,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.in.Execut
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunLifecycleUseCase;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunResult;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.RequestImportRunCommand;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSourceRegistry;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorAuthorizationPort;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.Connector;
@@ -25,6 +26,7 @@ import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportStatus;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportType;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.SyncPolicy;
 import io.github.khaledshawki.eoc.platform.TestcontainersConfiguration;
+import io.github.khaledshawki.eoc.platform.connectormanagement.support.TestBusinessDataSources;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +50,7 @@ class ConnectorPaymentImportOrchestrationIT {
   @Autowired private ExecuteImportRunUseCase executeImportRunUseCase;
   @Autowired private JdbcTemplate jdbcTemplate;
   @MockitoBean private ConnectorAuthorizationPort connectorAuthorizationPort;
+  @MockitoBean private BusinessDataSourceRegistry businessDataSourceRegistry;
 
   @BeforeEach
   void setUp() {
@@ -67,6 +70,8 @@ class ConnectorPaymentImportOrchestrationIT {
           connectors
         CASCADE
         """);
+    when(businessDataSourceRegistry.findByConnectorType(ConnectorType.of("mock-erp")))
+        .thenReturn(Optional.of(TestBusinessDataSources.healthy()));
     when(connectorAuthorizationPort.hasPermission(
             ACTOR, ConnectorTenantId.of(TENANT_ID), ConnectorPermission.EXECUTE_IMPORT))
         .thenReturn(true);
@@ -95,7 +100,8 @@ class ConnectorPaymentImportOrchestrationIT {
 
     assertEquals(ImportStatus.COMPLETED, completed.status());
     assertEquals(new ImportStatistics(3, 3, 0, 0), completed.statistics());
-    assertEquals(Optional.of(new ImportCursor("mock-erp|payment|3")), completed.committedCursor());
+    assertEquals(
+        Optional.of(new ImportCursor("test-source|payment|3")), completed.committedCursor());
     assertEquals(
         3L, jdbcTemplate.queryForObject("SELECT count(*) FROM operations_payments", Long.class));
     assertEquals(

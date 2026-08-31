@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package eoc.mockerp.v1;
+
+option java_multiple_files = true;
+option java_package = "io.github.khaledshawki.eoc.contracts.mockerp.v1";
+option java_outer_classname = "MockErpSourceProto";
+
+service MockErpSourceService {
+  rpc CheckConnection(CheckConnectionRequest) returns (CheckConnectionResponse);
+  rpc VerifySchema(VerifySchemaRequest) returns (VerifySchemaResponse);
+  rpc GetCustomers(SourcePageRequest) returns (CustomerPageResponse);
+  rpc GetInvoices(SourcePageRequest) returns (InvoicePageResponse);
+  rpc GetPayments(SourcePageRequest) returns (PaymentPageResponse);
+}
+
+message CheckConnectionRequest {}
+
+message CheckConnectionResponse {
+  string schema_version = 1;
+}
+
+message VerifySchemaRequest {}
+
+message VerifySchemaResponse {
+  repeated SchemaIssue issues = 1;
+}
+
+message SchemaIssue {
+  SourceEntity entity = 1;
+  string field = 2;
+  SchemaIssueType type = 3;
+}
+
+enum SourceEntity {
+  SOURCE_ENTITY_UNSPECIFIED = 0;
+  SOURCE_ENTITY_CUSTOMER = 1;
+  SOURCE_ENTITY_INVOICE = 2;
+  SOURCE_ENTITY_PAYMENT = 3;
+}
+
+enum SchemaIssueType {
+  SCHEMA_ISSUE_TYPE_UNSPECIFIED = 0;
+  SCHEMA_ISSUE_TYPE_MISSING_REQUIRED_ENTITY = 1;
+  SCHEMA_ISSUE_TYPE_MISSING_REQUIRED_FIELD = 2;
+  SCHEMA_ISSUE_TYPE_INCOMPATIBLE_FIELD_TYPE = 3;
+}
+
+message SourcePageRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  string incremental_cursor = 3;
+}
+
+message SourcePagePosition {
+  string next_page_token = 1;
+  string candidate_cursor = 2;
+}
+
+message CustomerRecord {
+  string source_id = 1;
+  string source_version = 2;
+  string source_modified_at = 3;
+  string customer_number = 4;
+  string display_name = 5;
+  string email_address = 6;
+}
+
+message CustomerPageResponse {
+  repeated CustomerRecord records = 1;
+  SourcePagePosition position = 2;
+}
+
+message InvoiceRecord {
+  string source_id = 1;
+  string source_version = 2;
+  string source_modified_at = 3;
+  string customer_source_id = 4;
+  string invoice_number = 5;
+  string issue_date = 6;
+  string due_date = 7;
+  string currency = 8;
+  string total_amount = 9;
+  string open_amount = 10;
+  string source_status = 11;
+}
+
+message InvoicePageResponse {
+  repeated InvoiceRecord records = 1;
+  SourcePagePosition position = 2;
+}
+
+message PaymentRecord {
+  string source_id = 1;
+  string source_version = 2;
+  string source_modified_at = 3;
+  string customer_source_id = 4;
+  string payment_date = 5;
+  string currency = 6;
+  string amount = 7;
+  bool reversed = 8;
+}
+
+message PaymentPageResponse {
+  repeated PaymentRecord records = 1;
+  SourcePagePosition position = 2;
+}

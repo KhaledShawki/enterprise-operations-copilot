@@ -9,12 +9,17 @@ import org.junit.jupiter.api.Test;
 class ConnectorEndpointTest {
 
   @Test
-  void shouldAcceptTrimmedHttpAndHttpsEndpoints() {
+  void shouldAcceptTrimmedHttpHttpsAndGrpcEndpoints() {
     assertEquals(
         URI.create("https://erp.example.com/api/v1?company=main"),
         ConnectorEndpoint.of("  https://erp.example.com/api/v1?company=main  ").value());
     assertEquals(
         URI.create("http://localhost:8080"), ConnectorEndpoint.of("http://localhost:8080").value());
+    assertEquals(
+        URI.create("grpc://mock-erp:9090"), ConnectorEndpoint.of("grpc://mock-erp:9090").value());
+    assertEquals(
+        URI.create("grpcs://erp.example.com:443"),
+        ConnectorEndpoint.of("grpcs://erp.example.com:443").value());
   }
 
   @Test

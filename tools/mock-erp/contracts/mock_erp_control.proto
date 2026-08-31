@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package eoc.mockerp.control.v1;
+
+service MockErpControlService {
+  rpc ConfigureDataset(ConfigureDatasetRequest) returns (DatasetMetadata);
+  rpc GetDatasetMetadata(GetDatasetMetadataRequest) returns (DatasetMetadata);
+}
+
+message ConfigureDatasetRequest {
+  int64 seed = 1;
+  int32 invoice_count = 2;
+}
+
+message GetDatasetMetadataRequest {}
+
+message DatasetMetadata {
+  string spec_version = 1;
+  int64 seed = 2;
+  int32 invoice_count = 3;
+  int32 customer_count = 4;
+  string dataset_sha256 = 5;
+}
