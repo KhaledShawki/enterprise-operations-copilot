@@ -52,6 +52,28 @@ Execute the smoke scenario:
 ./scripts/eoc-lab run smoke
 ```
 
+For the deterministic reconciliation baseline, configure a separate workload secret and start the
+evidence Compose overlay:
+
+```bash
+# deployment/compose/.env
+EOC_LAB_WORKLOAD_CLIENT_SECRET=<replace-the-example-value>
+
+docker compose \
+  --env-file deployment/compose/.env \
+  --file deployment/compose/compose.yaml \
+  --file deployment/compose/compose.evidence.yaml \
+  up --detach --build --wait --wait-timeout 240 platform-service web-bff mock-erp
+
+./scripts/eoc-lab run baseline --records 137 --seed 42
+```
+
+The baseline configures the external Mock ERP before creating business data, imports customers and
+invoices through the real connector boundary, reads authoritative Operations state, waits for the
+eventually consistent Analytics projection, and reconciles both through public APIs. Convergence
+polling observes only the Analytics page metadata; once the expected count is visible, the lab reads
+one strict, fully paginated snapshot for fingerprint and invariant reconciliation.
+
 Generated artifacts are written under `evidence/runs/<run-id>/` and are intentionally ignored by
 Git. Curated reference runs will be added separately when the measurement methodology is stable.
 
@@ -80,5 +102,6 @@ administrative CLI inside the local broker container. It must not:
 The `eoc-lab` service account is a control-plane identity for lab setup. Later business workload and
 tenant-isolation scenarios must use ordinary tenant-scoped actors.
 
-Later reliability scenarios may use explicit lab-only fault-control adapters, but those adapters must
-remain disabled outside the dedicated lab profile.
+Evidence-specific dataset generation and fault controls belong to external simulators such as
+`tools/mock-erp`; they must not be implemented as special business behavior inside EOC application
+modules.

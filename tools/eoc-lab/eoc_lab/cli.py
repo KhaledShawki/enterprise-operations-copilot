@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 import sys
 
+from eoc_lab.baseline import execute_baseline
 from eoc_lab.config import (
     ConfigurationError,
     DEFAULT_EXPECTED_ISSUER,
@@ -52,6 +53,16 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = subcommands.add_parser("run", help="Execute an evidence scenario.")
     run_subcommands = run_parser.add_subparsers(dest="scenario", required=True)
     run_subcommands.add_parser("smoke", help="Create and read back one tenant through public APIs.")
+    baseline_parser = run_subcommands.add_parser(
+        "baseline",
+        help="Run a deterministic external-source workload and reconcile Operations with Analytics.",
+    )
+    baseline_parser.add_argument(
+        "--records", type=int, required=True, help="Deterministic invoice record count."
+    )
+    baseline_parser.add_argument(
+        "--seed", type=int, default=42, help="Deterministic workload seed (default: 42)."
+    )
     return parser
 
 
@@ -84,6 +95,13 @@ def main(argv: list[str] | None = None) -> int:
 
         if arguments.command == "run" and arguments.scenario == "smoke":
             run = execute_smoke(config)
+            print(f"runId: {run.run_id}")
+            print(f"result: {run.status}")
+            print(f"evidence: {run.run_directory}")
+            return 0 if run.passed else 1
+
+        if arguments.command == "run" and arguments.scenario == "baseline":
+            run = execute_baseline(config, records=arguments.records, seed=arguments.seed)
             print(f"runId: {run.run_id}")
             print(f"result: {run.status}")
             print(f"evidence: {run.run_directory}")

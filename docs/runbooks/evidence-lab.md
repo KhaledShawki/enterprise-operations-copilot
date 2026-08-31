@@ -116,6 +116,44 @@ A successful execution:
 
 Additional response fields are permitted because additive fields are compatible within `/v1`.
 
+## Run the deterministic baseline
+
+The baseline uses an external gRPC Mock ERP from the evidence-only Compose overlay. Set a separate
+workload client secret in `deployment/compose/.env`, reset Keycloak volumes if the realm predates the
+workload client, and start:
+
+```bash
+docker compose \
+  --env-file deployment/compose/.env \
+  --file deployment/compose/compose.yaml \
+  --file deployment/compose/compose.evidence.yaml \
+  up \
+  --detach \
+  --build \
+  --wait \
+  --wait-timeout 240 \
+  platform-service web-bff mock-erp
+```
+
+Then execute:
+
+```bash
+./scripts/eoc-lab run baseline --records 137 --seed 42
+```
+
+The control-plane `eoc-lab` identity creates the tenant and membership. A distinct
+`eoc-lab-workload` service account has no platform-wide realm role; after self-provisioning it is
+assigned the tenant-scoped `tenant-admin` role and performs connector creation/imports/reads.
+
+The Mock ERP control service is bound only to loopback inside its own container. The lab configures
+it through `docker compose exec`; `platform-service` can reach only the public source gRPC service.
+The dataset fingerprint is checked against an independent Python implementation before tenant
+business mutation begins.
+
+The baseline imports customers before invoices, then compares deterministic expected business facts
+with Operations, Operations canonical projection facts with Analytics, event lineage invariants, and
+the Analytics receivables summary. Analytics non-convergence is recorded as `FAIL`, not `ERROR`.
+
 ## Terminal states
 
 Every started scenario records one terminal state:

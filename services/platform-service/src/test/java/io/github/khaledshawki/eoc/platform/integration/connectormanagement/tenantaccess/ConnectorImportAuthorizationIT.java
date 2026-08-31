@@ -2,6 +2,7 @@ package io.github.khaledshawki.eoc.platform.integration.connectormanagement.tena
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.when;
 
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorAccessDeniedException;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.authorization.ConnectorActor;
@@ -11,6 +12,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.in.Import
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunReference;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ImportRunResult;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.RequestImportRunCommand;
+import io.github.khaledshawki.eoc.connectormanagement.application.port.out.BusinessDataSourceRegistry;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorRepository;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.Connector;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ConnectorEndpoint;
@@ -24,6 +26,7 @@ import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportStatus;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.ImportType;
 import io.github.khaledshawki.eoc.connectormanagement.domain.model.SyncPolicy;
 import io.github.khaledshawki.eoc.platform.TestcontainersConfiguration;
+import io.github.khaledshawki.eoc.platform.connectormanagement.support.TestBusinessDataSources;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.PlatformUserRepository;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.TenantMembershipRepository;
 import io.github.khaledshawki.eoc.tenantaccess.application.port.out.TenantRepository;
@@ -34,6 +37,7 @@ import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantKey;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantMembership;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantName;
 import io.github.khaledshawki.eoc.tenantaccess.domain.model.TenantRoleKey;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +48,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
@@ -60,6 +65,7 @@ class ConnectorImportAuthorizationIT {
   @Autowired private TenantRepository tenantRepository;
   @Autowired private TenantMembershipRepository tenantMembershipRepository;
   @Autowired private JdbcTemplate jdbcTemplate;
+  @MockitoBean private BusinessDataSourceRegistry businessDataSourceRegistry;
 
   @BeforeEach
   void setUp() {
@@ -79,6 +85,8 @@ class ConnectorImportAuthorizationIT {
           tenants
         CASCADE
         """);
+    when(businessDataSourceRegistry.findByConnectorType(ConnectorType.of("mock-erp")))
+        .thenReturn(Optional.of(TestBusinessDataSources.healthy()));
   }
 
   @ParameterizedTest

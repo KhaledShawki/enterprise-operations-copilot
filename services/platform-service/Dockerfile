@@ -7,6 +7,7 @@ WORKDIR /workspace
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 COPY modules/ modules/
+COPY contracts/ contracts/
 COPY services/platform-service/pom.xml services/platform-service/pom.xml
 COPY services/web-bff/pom.xml services/web-bff/pom.xml
 COPY services/platform-service/src/ services/platform-service/src/

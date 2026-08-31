@@ -1,0 +1,26 @@
+services:
+  mock-erp:
+    image: eoc/mock-erp:local
+
+    build:
+      context: ../..
+      dockerfile: tools/mock-erp/Dockerfile
+
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    networks:
+      - platform
+
+  platform-service:
+    depends_on:
+      mock-erp:
+        condition: service_healthy

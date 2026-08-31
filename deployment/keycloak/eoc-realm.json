@@ -106,6 +106,34 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "eoc-lab-workload",
+      "name": "EOC Evidence Workload",
+      "description": "Local-only tenant-scoped workload identity for evidence campaigns",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${EOC_LAB_WORKLOAD_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+
+      "protocolMappers": [
+        {
+          "name": "platform-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "platform-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
 
@@ -137,6 +165,12 @@
       "realmRoles": [
         "platform-admin"
       ]
+    },
+    {
+      "username": "service-account-eoc-lab-workload",
+      "enabled": true,
+      "serviceAccountClientId": "eoc-lab-workload",
+      "realmRoles": []
     }
   ]
 }
