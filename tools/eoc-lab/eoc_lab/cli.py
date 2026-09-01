@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 from eoc_lab.baseline import execute_baseline
+from eoc_lab.baseline_api import CONVERGENCE_TIMEOUT_SECONDS
 from eoc_lab.config import (
     ConfigurationError,
     DEFAULT_EXPECTED_ISSUER,
@@ -63,6 +64,20 @@ def build_parser() -> argparse.ArgumentParser:
     baseline_parser.add_argument(
         "--seed", type=int, default=42, help="Deterministic workload seed (default: 42)."
     )
+    baseline_parser.add_argument(
+        "--capture-observability",
+        action="store_true",
+        help="Capture Prometheus metric deltas into the checksummed evidence result.",
+    )
+    baseline_parser.add_argument(
+        "--convergence-timeout-seconds",
+        type=_positive_float,
+        default=CONVERGENCE_TIMEOUT_SECONDS,
+        help=(
+            "Maximum time to wait for Analytics convergence "
+            f"(default: {CONVERGENCE_TIMEOUT_SECONDS:g} seconds)."
+        ),
+    )
     return parser
 
 
@@ -101,7 +116,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if run.passed else 1
 
         if arguments.command == "run" and arguments.scenario == "baseline":
-            run = execute_baseline(config, records=arguments.records, seed=arguments.seed)
+            run = execute_baseline(
+                config,
+                records=arguments.records,
+                seed=arguments.seed,
+                capture_observability=arguments.capture_observability,
+                convergence_timeout_seconds=arguments.convergence_timeout_seconds,
+            )
             print(f"runId: {run.run_id}")
             print(f"result: {run.status}")
             print(f"evidence: {run.run_directory}")
@@ -112,6 +133,16 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.error("Unsupported command")
     return 2
+
+
+def _positive_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exception:
+        raise argparse.ArgumentTypeError("must be a number") from exception
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return parsed
 
 
 def _repo_root() -> Path:

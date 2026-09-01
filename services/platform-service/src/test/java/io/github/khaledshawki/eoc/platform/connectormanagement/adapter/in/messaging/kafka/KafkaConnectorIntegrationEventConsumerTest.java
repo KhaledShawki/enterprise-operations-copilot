@@ -13,6 +13,8 @@ import static org.mockito.Mockito.verify;
 import io.github.khaledshawki.eoc.connectormanagement.application.exception.ConnectorEventConsumptionException;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ConnectorIntegrationEventEnvelope;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.in.ConsumeConnectorIntegrationEventUseCase;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipelineMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Instant;
 import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -115,7 +117,8 @@ class KafkaConnectorIntegrationEventConsumerTest {
     KafkaConnectorIntegrationEventDecoder decoder =
         mock(KafkaConnectorIntegrationEventDecoder.class);
     org.mockito.Mockito.when(decoder.decode("wire-value")).thenReturn(EVENT);
-    return new KafkaConnectorIntegrationEventConsumer(decoder, useCase);
+    return new KafkaConnectorIntegrationEventConsumer(
+        decoder, useCase, new EventPipelineMetrics(new SimpleMeterRegistry()));
   }
 
   private static ConsumerRecord<String, String> record(String key) {

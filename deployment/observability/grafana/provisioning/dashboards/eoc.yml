@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: EOC
+    orgId: 1
+    folder: EOC
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /etc/grafana/dashboards

@@ -7,6 +7,8 @@ import io.github.khaledshawki.eoc.copilot.application.port.out.CopilotModelPort;
 import io.github.khaledshawki.eoc.copilot.application.service.CopilotOrchestrationService;
 import io.github.khaledshawki.eoc.platform.copilot.adapter.out.llm.SpringAiCopilotModelAdapter;
 import io.github.khaledshawki.eoc.platform.integration.copilot.audit.AuditedAskCopilotUseCase;
+import io.github.khaledshawki.eoc.platform.integration.copilot.observability.MeteredAskCopilotUseCase;
+import io.github.khaledshawki.eoc.platform.observability.metrics.CopilotMetrics;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,7 +49,10 @@ public class CopilotLlmConfiguration {
   @Bean
   AskCopilotUseCase askCopilotUseCase(
       CopilotOrchestrationService orchestrationService,
-      RecordCopilotExecutionAuditUseCase auditUseCase) {
-    return new AuditedAskCopilotUseCase(orchestrationService, auditUseCase, UUID::randomUUID);
+      RecordCopilotExecutionAuditUseCase auditUseCase,
+      CopilotMetrics metrics) {
+    AskCopilotUseCase audited =
+        new AuditedAskCopilotUseCase(orchestrationService, auditUseCase, UUID::randomUUID);
+    return new MeteredAskCopilotUseCase(audited, metrics);
   }
 }

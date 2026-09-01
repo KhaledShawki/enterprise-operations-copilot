@@ -36,6 +36,18 @@ jobs:
           --file deployment/compose/compose.yaml
           config --quiet
 
+      - name: Validate observability Compose configuration
+        run: >
+          docker compose
+          --env-file deployment/compose/.env.example
+          --file deployment/compose/compose.yaml
+          --file deployment/compose/compose.observability.yaml
+          --profile observability
+          config --quiet
+
+      - name: Validate Grafana dashboard JSON
+        run: python3 -m json.tool deployment/observability/grafana/dashboards/eoc-event-pipeline.json >/dev/null
+
   evidence-lab:
     name: Evidence lab verify
     runs-on: ubuntu-latest

@@ -1,5 +1,6 @@
 package io.github.khaledshawki.eoc.platform.runtime;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -10,6 +11,7 @@ import io.github.khaledshawki.eoc.platform.TestcontainersConfiguration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
@@ -19,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
+@AutoConfigureMetrics
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class PlatformHealthApiIT {
@@ -26,6 +29,8 @@ class PlatformHealthApiIT {
   private static final String LIVENESS_ENDPOINT = "/actuator/health/liveness";
 
   private static final String READINESS_ENDPOINT = "/actuator/health/readiness";
+
+  private static final String PROMETHEUS_ENDPOINT = "/actuator/prometheus";
 
   @Autowired private MockMvc mockMvc;
 
@@ -63,6 +68,19 @@ class PlatformHealthApiIT {
 
     assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8"), successfulMigrationVersions);
     assertEquals("validate", environment.getRequiredProperty("spring.jpa.hibernate.ddl-auto"));
+  }
+
+  @Test
+  void shouldExposePrometheusWithoutAuthentication() throws Exception {
+    mockMvc
+        .perform(get(PROMETHEUS_ENDPOINT).accept(MediaType.TEXT_PLAIN))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+        .andExpect(content().string(containsString("# HELP")))
+        .andExpect(content().string(containsString("process_uptime_seconds")))
+        .andExpect(content().string(containsString("hikaricp_connections_active")))
+        .andExpect(content().string(containsString("eoc_connector_import_execution_total")))
+        .andExpect(content().string(containsString("eoc_copilot_request_total")));
   }
 
   @Test

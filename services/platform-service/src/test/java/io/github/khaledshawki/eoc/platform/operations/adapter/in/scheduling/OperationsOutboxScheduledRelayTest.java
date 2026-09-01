@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import io.github.khaledshawki.eoc.operations.application.model.outbox.PublishOperationsOutboxBatchCommand;
 import io.github.khaledshawki.eoc.operations.application.model.outbox.PublishOperationsOutboxBatchResult;
 import io.github.khaledshawki.eoc.operations.application.port.in.PublishOperationsOutboxBatchUseCase;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipelineMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +19,11 @@ class OperationsOutboxScheduledRelayTest {
     RecordingUseCase useCase = new RecordingUseCase();
     OperationsOutboxScheduledRelay relay =
         new OperationsOutboxScheduledRelay(
-            useCase, "operations-worker-1", 7, Duration.ofSeconds(31));
+            useCase,
+            "operations-worker-1",
+            7,
+            Duration.ofSeconds(31),
+            new EventPipelineMetrics(new SimpleMeterRegistry()));
 
     relay.publishNextBatch();
     relay.publishNextBatch();

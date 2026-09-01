@@ -9,6 +9,8 @@ import io.github.khaledshawki.eoc.connectormanagement.application.model.event.Im
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ImportRunFailedPayload;
 import io.github.khaledshawki.eoc.connectormanagement.application.model.event.ImportRunRetryScheduledPayload;
 import io.github.khaledshawki.eoc.connectormanagement.application.port.out.ConnectorIntegrationEventInbox;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipeline;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipelineMetrics;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -36,11 +38,14 @@ class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventInbox
   private final JdbcTemplate jdbcTemplate;
   private final Clock clock;
   private final JsonMapper jsonMapper;
+  private final EventPipelineMetrics metrics;
 
-  ConnectorInboxPersistenceAdapter(JdbcTemplate jdbcTemplate, Clock clock, JsonMapper jsonMapper) {
+  ConnectorInboxPersistenceAdapter(
+      JdbcTemplate jdbcTemplate, Clock clock, JsonMapper jsonMapper, EventPipelineMetrics metrics) {
     this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "JDBC template cannot be null");
     this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
     this.jsonMapper = Objects.requireNonNull(jsonMapper, "JSON mapper cannot be null");
+    this.metrics = Objects.requireNonNull(metrics, "Event pipeline metrics cannot be null");
   }
 
   @Override
@@ -126,6 +131,7 @@ class ConnectorInboxPersistenceAdapter implements ConnectorIntegrationEventInbox
       if (!fingerprint.equals(storedFingerprint) && !hasIdenticalImmutableContent(event)) {
         throw new ConnectorEventConsumptionException(EVENT_ID_COLLISION, false, null);
       }
+      metrics.recordInboxDuplicate(EventPipeline.CONNECTOR);
       return;
     }
 

@@ -26,6 +26,8 @@ import io.github.khaledshawki.eoc.connectormanagement.application.service.GetCon
 import io.github.khaledshawki.eoc.connectormanagement.application.service.ImportRunLifecycleService;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.ListConnectorsService;
 import io.github.khaledshawki.eoc.connectormanagement.application.service.SuspendConnectorService;
+import io.github.khaledshawki.eoc.platform.integration.connectormanagement.observability.MeteredExecuteImportRunUseCase;
+import io.github.khaledshawki.eoc.platform.observability.metrics.ConnectorImportMetrics;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.UUID;
@@ -100,16 +102,19 @@ public class ConnectorManagementConfiguration {
       BusinessPartnerImportPort businessPartnerImportPort,
       InvoiceImportPort invoiceImportPort,
       PaymentImportPort paymentImportPort,
-      Clock clock) {
-    return new ExecuteImportRunService(
-        connectorRepository,
-        connectorAuthorizationPort,
-        importRunLifecycleUseCase,
-        businessDataSourceRegistry,
-        businessPartnerImportPort,
-        invoiceImportPort,
-        paymentImportPort,
-        new ImportRetryPolicy(3, Duration.ofMinutes(1)),
-        clock);
+      Clock clock,
+      ConnectorImportMetrics metrics) {
+    ExecuteImportRunUseCase delegate =
+        new ExecuteImportRunService(
+            connectorRepository,
+            connectorAuthorizationPort,
+            importRunLifecycleUseCase,
+            businessDataSourceRegistry,
+            businessPartnerImportPort,
+            invoiceImportPort,
+            paymentImportPort,
+            new ImportRetryPolicy(3, Duration.ofMinutes(1)),
+            clock);
+    return new MeteredExecuteImportRunUseCase(delegate, metrics);
   }
 }

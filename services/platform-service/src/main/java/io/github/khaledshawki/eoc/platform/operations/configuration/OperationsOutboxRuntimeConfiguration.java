@@ -6,6 +6,7 @@ import io.github.khaledshawki.eoc.operations.application.port.out.OperationsInte
 import io.github.khaledshawki.eoc.operations.application.port.out.OperationsOutboxRepository;
 import io.github.khaledshawki.eoc.operations.application.service.PublishOperationsOutboxBatchService;
 import io.github.khaledshawki.eoc.platform.messaging.kafka.PlatformKafkaProducerProperties;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipelineMetrics;
 import io.github.khaledshawki.eoc.platform.operations.adapter.in.scheduling.OperationsOutboxScheduledRelay;
 import java.time.Clock;
 import java.time.Duration;
@@ -47,14 +48,16 @@ public class OperationsOutboxRuntimeConfiguration {
       PublishOperationsOutboxBatchUseCase useCase,
       OperationsKafkaProperties kafkaProperties,
       OperationsOutboxProperties outboxProperties,
-      PlatformKafkaProducerProperties producerProperties) {
+      PlatformKafkaProducerProperties producerProperties,
+      EventPipelineMetrics metrics) {
     requireClaimLeaseExceedsPublicationBudget(
         kafkaProperties, outboxProperties, producerProperties);
     return new OperationsOutboxScheduledRelay(
         useCase,
         "operations-outbox-" + UUID.randomUUID(),
         outboxProperties.batchSize(),
-        outboxProperties.claimLease());
+        outboxProperties.claimLease(),
+        metrics);
   }
 
   static void requireClaimLeaseExceedsPublicationBudget(

@@ -11,8 +11,11 @@ from eoc_lab.process import CommandRunner
 from eoc_lab.provenance import collect_runtime_provenance
 
 
-def validate_evidence_compose(config: BaselineConfig, runner: CommandRunner) -> None:
-    result = runner.run([*config.compose_prefix, "config", "--quiet"])
+def validate_evidence_compose(
+    config: BaselineConfig, runner: CommandRunner, *, include_observability: bool = False
+) -> None:
+    prefix = config.observability_compose_prefix if include_observability else config.compose_prefix
+    result = runner.run([*prefix, "config", "--quiet"])
     if result.returncode != 0:
         raise ScenarioError(
             "preflight", "EVIDENCE_COMPOSE_INVALID", result.stderr or "Evidence Compose is invalid"
@@ -70,7 +73,9 @@ def configure_mock_erp(
     return metadata
 
 
-def capture_runtime_provenance(config: BaselineConfig, runner: CommandRunner) -> dict[str, Any]:
+def capture_runtime_provenance(
+    config: BaselineConfig, runner: CommandRunner, *, include_observability: bool = False
+) -> dict[str, Any]:
     try:
         runtime = collect_runtime_provenance(config.lab, runner)
         container = runner.run([*config.compose_prefix, "ps", "--quiet", "mock-erp"])
@@ -86,6 +91,39 @@ def capture_runtime_provenance(config: BaselineConfig, runner: CommandRunner) ->
         runtime["configuration"]["evidenceComposeFileSha256"] = sha256_file(
             config.evidence_compose_file
         )
+        if include_observability:
+            for service in ("prometheus", "grafana"):
+                service_container = runner.run(
+                    [*config.observability_compose_prefix, "ps", "--quiet", service]
+                )
+                if service_container.returncode != 0 or not service_container.stdout:
+                    raise RuntimeError(f"Cannot resolve {service} container id")
+                service_inspected = runner.run(
+                    [
+                        "docker",
+                        "inspect",
+                        "--format",
+                        "{{.Config.Image}}|{{.Image}}",
+                        service_container.stdout,
+                    ]
+                )
+                if service_inspected.returncode != 0 or "|" not in service_inspected.stdout:
+                    raise RuntimeError(f"Cannot inspect {service} image")
+                service_reference, service_image_id = service_inspected.stdout.split("|", 1)
+                runtime["images"][service] = {
+                    "reference": service_reference,
+                    "imageId": service_image_id,
+                }
+            runtime["configuration"]["observabilityComposeFileSha256"] = sha256_file(
+                config.observability_compose_file
+            )
+            runtime["configuration"]["prometheusConfigSha256"] = sha256_file(
+                config.lab.repo_root / "deployment/observability/prometheus/prometheus.yml"
+            )
+            runtime["configuration"]["grafanaDashboardSha256"] = sha256_file(
+                config.lab.repo_root
+                / "deployment/observability/grafana/dashboards/eoc-event-pipeline.json"
+            )
         return runtime
     except Exception as exception:
         return {

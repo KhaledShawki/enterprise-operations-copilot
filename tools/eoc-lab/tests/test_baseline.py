@@ -12,6 +12,7 @@ import eoc_lab.baseline as baseline
 from eoc_lab.baseline_dataset import expected_dataset
 from eoc_lab.doctor import DoctorReport
 from eoc_lab.evidence import RepositoryState
+from eoc_lab.observability import PrometheusSnapshot, expected_counter_deltas
 from eoc_lab.reconciliation import expected_summary
 
 
@@ -67,6 +68,73 @@ class BaselineScenarioTest(unittest.TestCase):
         self.assertEqual(
             store.result["fingerprints"]["operationsProjectionFactsSha256"],
             store.result["fingerprints"]["analyticsProjectionFactsSha256"],
+        )
+        self.assertEqual(300.0, store.manifest["workload"]["convergenceTimeoutSeconds"])
+
+
+    def test_observability_capture_is_embedded_in_pass_evidence(self) -> None:
+        dataset = expected_dataset(42, 3)
+        operations = _operations(dataset)
+        analytics = _analytics(operations)
+        summary = _summary(dataset)
+        store = CapturingEvidenceStore()
+        before = _prometheus_snapshot(base=100.0)
+        after = _prometheus_snapshot(base=100.0)
+        for name, delta in expected_counter_deltas(
+            customer_count=len(dataset.customers), invoice_count=len(dataset.invoices)
+        ).items():
+            after.counters[name] += delta
+
+        with self._common_patches(dataset, operations, store) as mocks:
+            mocks["wait"].return_value = analytics
+            mocks["summary"].return_value = summary
+            with patch.object(
+                baseline, "_wait_for_stable_prometheus_snapshot", return_value=before
+            ), patch.object(
+                baseline, "_wait_for_prometheus_snapshot", return_value=after
+            ):
+                run = baseline.execute_baseline(
+                    _lab_config(),
+                    records=3,
+                    seed=42,
+                    evidence_store=store,
+                    doctor_report=DoctorReport(checks=()),
+                    now=datetime(2026, 5, 15, tzinfo=timezone.utc),
+                    capture_observability=True,
+                )
+
+        self.assertEqual("PASS", run.status)
+        self.assertEqual("prometheus-http-api", store.result["observability"]["source"])
+        self.assertTrue(
+            store.result["invariants"]["observabilityCounterDeltasMatchWorkload"]
+        )
+        self.assertTrue(store.result["invariants"]["observabilityPipelineDrained"])
+
+    def test_custom_convergence_timeout_is_forwarded_and_recorded(self) -> None:
+        dataset = expected_dataset(42, 3)
+        operations = _operations(dataset)
+        analytics = _analytics(operations)
+        summary = _summary(dataset)
+        store = CapturingEvidenceStore()
+
+        with self._common_patches(dataset, operations, store) as mocks:
+            mocks["wait"].return_value = analytics
+            mocks["summary"].return_value = summary
+
+            run = baseline.execute_baseline(
+                _lab_config(),
+                records=3,
+                seed=42,
+                evidence_store=store,
+                doctor_report=DoctorReport(checks=()),
+                now=datetime(2026, 5, 15, tzinfo=timezone.utc),
+                convergence_timeout_seconds=1800.0,
+            )
+
+        self.assertEqual("PASS", run.status)
+        self.assertEqual(1800.0, store.manifest["workload"]["convergenceTimeoutSeconds"])
+        self.assertEqual(
+            1800.0, mocks["wait"].call_args.kwargs["timeout_seconds"]
         )
 
     def test_analytics_non_convergence_is_fail_not_error(self) -> None:
@@ -254,7 +322,27 @@ def _baseline_config():
     return SimpleNamespace(
         lab=SimpleNamespace(lab_client_secret="control-secret"),
         workload_client_secret="workload-secret",
+        prometheus_base_url="http://127.0.0.1:9090",
     )
+
+
+def _prometheus_snapshot(*, base: float) -> PrometheusSnapshot:
+    expected = expected_counter_deltas(customer_count=0, invoice_count=0)
+    counters = {
+        name: base
+        for name in {
+            *expected.keys(),
+            "connectorOutboxDurationSamples",
+            "operationsOutboxDurationSamples",
+        }
+    }
+    gauges = {
+        "connectorOutboxPending": 0.0,
+        "operationsOutboxPending": 0.0,
+        "connectorOutboxOldestSeconds": 0.0,
+        "operationsOutboxOldestSeconds": 0.0,
+    }
+    return PrometheusSnapshot(counters=counters, gauges=gauges)
 
 
 def _repository_state() -> RepositoryState:
