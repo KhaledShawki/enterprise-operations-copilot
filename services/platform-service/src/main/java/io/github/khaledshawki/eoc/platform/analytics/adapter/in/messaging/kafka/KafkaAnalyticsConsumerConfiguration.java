@@ -5,7 +5,10 @@ import io.github.khaledshawki.eoc.platform.analytics.adapter.messaging.kafka.Ana
 import io.github.khaledshawki.eoc.platform.analytics.configuration.AnalyticsKafkaConsumerProperties;
 import io.github.khaledshawki.eoc.platform.analytics.configuration.AnalyticsKafkaProperties;
 import io.github.khaledshawki.eoc.platform.messaging.kafka.PlatformKafkaProducerProperties;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipeline;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipelineMetrics;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.internals.RecordHeaders;
@@ -18,6 +21,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.ConsumerRecordRecoverer;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
@@ -52,8 +56,10 @@ class KafkaAnalyticsConsumerConfiguration {
       matchIfMissing = true)
   KafkaAnalyticsIntegrationEventConsumer kafkaAnalyticsIntegrationEventConsumer(
       KafkaAnalyticsIntegrationEventDecoder decoder,
-      ConsumeAnalyticsIntegrationEventUseCase useCase) {
-    return new KafkaAnalyticsIntegrationEventConsumer(decoder, useCase);
+      ConsumeAnalyticsIntegrationEventUseCase useCase,
+      EventPipelineMetrics metrics,
+      Clock clock) {
+    return new KafkaAnalyticsIntegrationEventConsumer(decoder, useCase, metrics, clock);
   }
 
   @Bean(name = "analyticsKafkaListenerContainerFactory")
@@ -68,6 +74,7 @@ class KafkaAnalyticsConsumerConfiguration {
       AnalyticsKafkaProperties kafkaProperties,
       PlatformKafkaProducerProperties producerProperties,
       AnalyticsKafkaConsumerProperties consumerProperties,
+      EventPipelineMetrics metrics,
       @Value("${spring.kafka.consumer.max-poll-interval:5m}") Duration maxPollInterval) {
     if (kafkaProperties.sourceTopic().equals(consumerProperties.dltTopic())) {
       throw new IllegalStateException("Analytics Kafka source and DLT topics must be different");
@@ -79,7 +86,8 @@ class KafkaAnalyticsConsumerConfiguration {
         new ConcurrentKafkaListenerContainerFactory<>();
     DefaultErrorHandler errorHandler =
         errorHandler(
-            deadLetterPublishingRecoverer(kafkaTemplate, consumerProperties), consumerProperties);
+            deadLetterPublishingRecoverer(kafkaTemplate, consumerProperties, metrics),
+            consumerProperties);
     configurer.configure(factory, consumerFactory);
     factory.setBatchListener(false);
     factory.setConcurrency(consumerProperties.concurrency());
@@ -113,8 +121,10 @@ class KafkaAnalyticsConsumerConfiguration {
     }
   }
 
-  private static DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(
-      KafkaTemplate<String, String> kafkaTemplate, AnalyticsKafkaConsumerProperties properties) {
+  private static ConsumerRecordRecoverer deadLetterPublishingRecoverer(
+      KafkaTemplate<String, String> kafkaTemplate,
+      AnalyticsKafkaConsumerProperties properties,
+      EventPipelineMetrics metrics) {
     DeadLetterPublishingRecoverer recoverer =
         new DeadLetterPublishingRecoverer(
             kafkaTemplate,
@@ -129,11 +139,14 @@ class KafkaAnalyticsConsumerConfiguration {
               .add(FAILURE_CODE_HEADER, bytes(failure.failureCode()))
               .add(RETRYABLE_HEADER, bytes(Boolean.toString(failure.retryable())));
         });
-    return recoverer;
+    return (record, exception) -> {
+      recoverer.accept(record, exception);
+      metrics.recordDeadLetter(EventPipeline.ANALYTICS);
+    };
   }
 
   private static DefaultErrorHandler errorHandler(
-      DeadLetterPublishingRecoverer recoverer, AnalyticsKafkaConsumerProperties properties) {
+      ConsumerRecordRecoverer recoverer, AnalyticsKafkaConsumerProperties properties) {
     DefaultErrorHandler errorHandler =
         new DefaultErrorHandler(
             recoverer,

@@ -32,6 +32,7 @@ public class SecurityConfiguration {
   private static final String ROLE_AUTHORITY_PREFIX = "ROLE_";
   private static final String LIVENESS_ENDPOINT = "/actuator/health/liveness";
   private static final String READINESS_ENDPOINT = "/actuator/health/readiness";
+  private static final String PROMETHEUS_ENDPOINT = "/actuator/prometheus";
 
   @Bean
   SecurityFilterChain apiSecurityFilterChain(
@@ -47,7 +48,8 @@ public class SecurityConfiguration {
         .authorizeHttpRequests(
             authorization ->
                 authorization
-                    .requestMatchers(HttpMethod.GET, LIVENESS_ENDPOINT, READINESS_ENDPOINT)
+                    .requestMatchers(
+                        HttpMethod.GET, LIVENESS_ENDPOINT, READINESS_ENDPOINT, PROMETHEUS_ENDPOINT)
                     .permitAll()
                     .requestMatchers(
                         HttpMethod.POST,

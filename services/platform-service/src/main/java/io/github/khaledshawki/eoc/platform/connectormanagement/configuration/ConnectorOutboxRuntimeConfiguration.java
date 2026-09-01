@@ -7,6 +7,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.port.out.Conne
 import io.github.khaledshawki.eoc.connectormanagement.application.service.PublishConnectorOutboxBatchService;
 import io.github.khaledshawki.eoc.platform.connectormanagement.adapter.in.scheduling.ConnectorOutboxScheduledRelay;
 import io.github.khaledshawki.eoc.platform.messaging.kafka.PlatformKafkaProducerProperties;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipelineMetrics;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.UUID;
@@ -45,7 +46,8 @@ public class ConnectorOutboxRuntimeConfiguration {
       PlatformKafkaProducerProperties producerProperties,
       @Value("${eoc.connector-events.transport:local}") String transport,
       @Value("${eoc.connector-outbox.batch-size:1}") int batchSize,
-      @Value("${eoc.connector-outbox.claim-lease-seconds:30}") long claimLeaseSeconds) {
+      @Value("${eoc.connector-outbox.claim-lease-seconds:30}") long claimLeaseSeconds,
+      EventPipelineMetrics metrics) {
     Duration claimLease = Duration.ofSeconds(claimLeaseSeconds);
     if ("kafka".equals(transport)) {
       Duration perEventPublicationBudget =
@@ -64,6 +66,6 @@ public class ConnectorOutboxRuntimeConfiguration {
       }
     }
     return new ConnectorOutboxScheduledRelay(
-        useCase, "connector-outbox-" + UUID.randomUUID(), batchSize, claimLease);
+        useCase, "connector-outbox-" + UUID.randomUUID(), batchSize, claimLease, metrics);
   }
 }

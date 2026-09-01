@@ -8,7 +8,9 @@ from typing import Any
 from eoc_lab.auth import authenticate_lab_identity
 from eoc_lab.baseline_api import (
     BUSINESS_DATE,
+    CONVERGENCE_TIMEOUT_SECONDS,
     PAGE_SIZE,
+    WorkloadTokenProvider,
     assign_workload_membership as _assign_workload_membership,
     authenticate_workload_identity as _authenticate_workload_identity,
     create_and_activate_connector as _create_and_activate_connector,
@@ -43,6 +45,13 @@ from eoc_lab.evidence import (
 )
 from eoc_lab.http import HttpClient
 from eoc_lab.process import CommandRunner
+from eoc_lab.observability import (
+    PrometheusClient,
+    PrometheusSnapshot,
+    evidence_payload as _observability_evidence_payload,
+    wait_for_snapshot as _wait_for_prometheus_snapshot,
+    wait_for_stable_snapshot as _wait_for_stable_prometheus_snapshot,
+)
 from eoc_lab.reconciliation import (
     ReconciliationError,
     analytics_projection_facts,
@@ -57,7 +66,7 @@ from eoc_lab.reconciliation import (
 
 
 SCENARIO_NAME = "baseline"
-SCENARIO_VERSION = 1
+SCENARIO_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -81,6 +90,8 @@ def execute_baseline(
     evidence_store: EvidenceStore | None = None,
     doctor_report: DoctorReport | None = None,
     now: datetime | None = None,
+    capture_observability: bool = False,
+    convergence_timeout_seconds: float = CONVERGENCE_TIMEOUT_SECONDS,
 ) -> BaselineRun:
     baseline_config = BaselineConfig.from_lab(config)
     expected = expected_dataset(seed, records)
@@ -93,21 +104,38 @@ def execute_baseline(
     source_state = repository_state(config.repo_root, runner)
     host_environment = environment_metadata()
     report = doctor_report or run_doctor(config, command_runner=runner, http_client=http)
-    runtime = _capture_runtime_provenance(baseline_config, runner)
+    runtime = _capture_runtime_provenance(
+        baseline_config, runner, include_observability=capture_observability
+    )
     state = _initial_state(report)
     metadata: dict[str, Any] | None = None
+    observability: dict[str, Any] | None = None
+    prometheus: PrometheusClient | None = None
+    prometheus_before: PrometheusSnapshot | None = None
     phase = "preflight"
 
     try:
         _require_preflight(report, runtime)
-        _validate_evidence_compose(baseline_config, runner)
+        _validate_evidence_compose(
+            baseline_config, runner, include_observability=capture_observability
+        )
         state.invariants["evidenceComposeValid"] = True
         metadata = _configure_mock_erp(baseline_config, runner, expected, records, seed)
         state.invariants["mockErpDatasetMatchesExpectation"] = True
 
+        if capture_observability:
+            phase = "observability-preflight"
+            prometheus = PrometheusClient(
+                http, base_url=baseline_config.prometheus_base_url
+            )
+            prometheus_before = _wait_for_stable_prometheus_snapshot(
+                prometheus, _outbox_is_drained
+            )
+
         phase = "authentication"
         control = authenticate_lab_identity(config, http)
         workload = _authenticate_workload_identity(baseline_config, http)
+        workload_tokens = WorkloadTokenProvider(baseline_config, http, workload)
         if "platform-admin" in workload.roles:
             raise ScenarioError(
                 phase, "WORKLOAD_HAS_PLATFORM_ADMIN", "Workload identity must not have platform-admin"
@@ -128,33 +156,86 @@ def execute_baseline(
         state.invariants["tenantScopedMembershipAssigned"] = True
 
         phase = "connector-create"
-        connector_id = _create_and_activate_connector(config, http, workload.access_token, tenant_id)
+        connector_id = _create_and_activate_connector(
+            config, http, workload_tokens.access_token(), tenant_id
+        )
         state.resource["connectorId"] = connector_id
 
-        _run_imports(config, http, workload, tenant_id, connector_id, expected, state)
-        operations = _reconcile_operations(config, http, workload, tenant_id, expected, state)
+        _run_imports(config, http, workload_tokens, tenant_id, connector_id, expected, state)
+        operations = _reconcile_operations(
+            config, http, workload_tokens, tenant_id, expected, state
+        )
         if not state.invariants["expectedMatchesOperations"]:
             return _terminal_run(
                 config, store, source_state, host_environment, runtime, report, run_id, started_at,
-                "FAIL", "operations-reconciliation", state, expected, metadata
+                "FAIL", "operations-reconciliation", state, expected, metadata, observability,
+                convergence_timeout_seconds=convergence_timeout_seconds,
             )
 
-        _reconcile_analytics(config, http, workload, tenant_id, expected, operations, state)
+        _reconcile_analytics(
+            config,
+            http,
+            workload_tokens,
+            tenant_id,
+            expected,
+            operations,
+            state,
+            convergence_timeout_seconds=convergence_timeout_seconds,
+        )
+
+        if capture_observability:
+            phase = "observability-capture"
+            if prometheus is None or prometheus_before is None:
+                raise RuntimeError("Observability capture was not initialized")
+            expected_customers = len(expected.customers)
+            expected_invoices = len(expected.invoices)
+            prometheus_after = _wait_for_prometheus_snapshot(
+                prometheus,
+                lambda snapshot: _observability_matches_workload(
+                    prometheus,
+                    prometheus_before,
+                    snapshot,
+                    customer_count=expected_customers,
+                    invoice_count=expected_invoices,
+                ),
+            )
+            observability = _observability_evidence_payload(
+                client=prometheus,
+                before=prometheus_before,
+                after=prometheus_after,
+                customer_count=expected_customers,
+                invoice_count=expected_invoices,
+            )
+            checks = observability["checks"]
+            state.invariants["observabilityCounterDeltasMatchWorkload"] = bool(
+                checks["counterDeltasMatchWorkload"]
+            )
+            state.invariants["observabilityPipelineDrained"] = bool(checks["pipelineDrained"])
+
         passed = all(state.invariants.values())
         return _terminal_run(
             config, store, source_state, host_environment, runtime, report, run_id, started_at,
-            "PASS" if passed else "FAIL", "complete", state, expected, metadata
+            "PASS" if passed else "FAIL", "complete", state, expected, metadata, observability,
+            convergence_timeout_seconds=convergence_timeout_seconds,
         )
     except AnalyticsDidNotConverge:
         return _terminal_run(
             config, store, source_state, host_environment, runtime, report, run_id, started_at,
-            "FAIL", "analytics-convergence", state, expected, metadata
+            "FAIL", "analytics-convergence", state, expected, metadata, observability,
+            convergence_timeout_seconds=convergence_timeout_seconds,
         )
     except Exception as exception:
         error = _error_payload(exception, phase, baseline_config)
         return _terminal_run(
             config, store, source_state, host_environment, runtime, report, run_id, started_at,
-            "ERROR", getattr(exception, "phase", phase), state, expected, metadata, error=error
+            "ERROR",
+            getattr(exception, "phase", phase),
+            state,
+            expected,
+            metadata,
+            observability,
+            convergence_timeout_seconds=convergence_timeout_seconds,
+            error=error,
         )
 
 
@@ -206,14 +287,14 @@ def _require_preflight(report: DoctorReport, runtime: dict[str, Any]) -> None:
 def _run_imports(
     config: LabConfig,
     http: HttpClient,
-    workload: WorkloadIdentity,
+    workload_tokens: WorkloadTokenProvider,
     tenant_id: str,
     connector_id: str,
     expected: ExpectedDataset,
     state: _ScenarioState,
 ) -> None:
     customer_run = _request_and_execute_import(
-        config, http, workload.access_token, tenant_id, connector_id, "CUSTOMERS"
+        config, http, workload_tokens.access_token(), tenant_id, connector_id, "CUSTOMERS"
     )
     customer_stats = _import_statistics(customer_run)
     state.metrics["customersImported"] = customer_stats["accepted"]
@@ -229,7 +310,7 @@ def _run_imports(
         )
 
     invoice_run = _request_and_execute_import(
-        config, http, workload.access_token, tenant_id, connector_id, "INVOICES"
+        config, http, workload_tokens.access_token(), tenant_id, connector_id, "INVOICES"
     )
     invoice_stats = _import_statistics(invoice_run)
     state.metrics["invoicesImported"] = invoice_stats["accepted"]
@@ -248,12 +329,12 @@ def _run_imports(
 def _reconcile_operations(
     config: LabConfig,
     http: HttpClient,
-    workload: WorkloadIdentity,
+    workload_tokens: WorkloadTokenProvider,
     tenant_id: str,
     expected: ExpectedDataset,
     state: _ScenarioState,
 ) -> list[dict[str, Any]]:
-    operations = _read_all_invoices(config, http, workload.access_token, tenant_id)
+    operations = _read_all_invoices(config, http, workload_tokens.access_token(), tenant_id)
     state.metrics["operationsInvoices"] = len(operations)
     expected_facts = expected_business_facts(expected)
     operations_facts = operations_business_facts(operations)
@@ -266,14 +347,21 @@ def _reconcile_operations(
 def _reconcile_analytics(
     config: LabConfig,
     http: HttpClient,
-    workload: WorkloadIdentity,
+    workload_tokens: WorkloadTokenProvider,
     tenant_id: str,
     expected: ExpectedDataset,
     operations: list[dict[str, Any]],
     state: _ScenarioState,
+    *,
+    convergence_timeout_seconds: float,
 ) -> None:
     analytics = _wait_for_analytics(
-        config, http, workload.access_token, tenant_id, expected_count=len(expected.invoices)
+        config,
+        http,
+        workload_tokens.access_token,
+        tenant_id,
+        expected_count=len(expected.invoices),
+        timeout_seconds=convergence_timeout_seconds,
     )
     state.metrics["analyticsReceivables"] = len(analytics)
 
@@ -284,7 +372,7 @@ def _reconcile_analytics(
     state.invariants["operationsMatchesAnalytics"] = operations_projection == analytics_projection
     state.invariants.update(lineage_invariants(analytics))
 
-    summary_payload = _read_summary(config, http, workload.access_token, tenant_id)
+    summary_payload = _read_summary(config, http, workload_tokens.access_token(), tenant_id)
     actual_summary = normalize_summary(
         summary_payload, tenant_id=tenant_id, business_date=BUSINESS_DATE.isoformat()
     )
@@ -292,6 +380,37 @@ def _reconcile_analytics(
     state.fingerprints["expectedSummarySha256"] = canonical_hash([expected_summary_value])
     state.fingerprints["analyticsSummarySha256"] = canonical_hash([actual_summary])
     state.invariants["analyticsSummaryMatchesExpected"] = actual_summary == expected_summary_value
+
+
+def _outbox_is_drained(snapshot: PrometheusSnapshot) -> bool:
+    return all(
+        snapshot.gauges[name] == 0.0
+        for name in (
+            "connectorOutboxPending",
+            "operationsOutboxPending",
+            "connectorOutboxOldestSeconds",
+            "operationsOutboxOldestSeconds",
+        )
+    )
+
+
+def _observability_matches_workload(
+    prometheus: PrometheusClient,
+    before: PrometheusSnapshot,
+    after: PrometheusSnapshot,
+    *,
+    customer_count: int,
+    invoice_count: int,
+) -> bool:
+    payload = _observability_evidence_payload(
+        client=prometheus,
+        before=before,
+        after=after,
+        customer_count=customer_count,
+        invoice_count=invoice_count,
+    )
+    checks = payload["checks"]
+    return bool(checks["counterDeltasMatchWorkload"] and checks["pipelineDrained"])
 
 
 def _error_payload(exception: Exception, phase: str, config: BaselineConfig) -> dict[str, Any]:
@@ -320,7 +439,9 @@ def _terminal_run(
     state: _ScenarioState,
     expected: ExpectedDataset,
     metadata: dict[str, Any] | None,
+    observability: dict[str, Any] | None,
     *,
+    convergence_timeout_seconds: float,
     error: dict[str, Any] | None = None,
 ) -> BaselineRun:
     finished_at = utc_now()
@@ -341,7 +462,9 @@ def _terminal_run(
         "finishedAt": isoformat_utc(finished_at),
         "environment": host_environment,
         "runtime": runtime,
-        "workload": _workload_manifest(expected, metadata),
+        "workload": _workload_manifest(
+            expected, metadata, convergence_timeout_seconds=convergence_timeout_seconds
+        ),
     }
     result: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
@@ -358,13 +481,20 @@ def _terminal_run(
     }
     if state.resource is not None:
         result["resource"] = state.resource
+    if observability is not None:
+        result["observability"] = observability
     if error is not None:
         result["error"] = error
     directory = store.write_run(run_id, manifest, result)
     return BaselineRun(run_id, str(directory), status)
 
 
-def _workload_manifest(expected: ExpectedDataset, metadata: dict[str, Any] | None) -> dict[str, Any]:
+def _workload_manifest(
+    expected: ExpectedDataset,
+    metadata: dict[str, Any] | None,
+    *,
+    convergence_timeout_seconds: float,
+) -> dict[str, Any]:
     return {
         "specVersion": SPEC_VERSION,
         "seed": expected.seed,
@@ -374,6 +504,7 @@ def _workload_manifest(expected: ExpectedDataset, metadata: dict[str, Any] | Non
         "mockErpMetadata": metadata,
         "businessDate": BUSINESS_DATE.isoformat(),
         "pageSize": PAGE_SIZE,
+        "convergenceTimeoutSeconds": convergence_timeout_seconds,
     }
 
 

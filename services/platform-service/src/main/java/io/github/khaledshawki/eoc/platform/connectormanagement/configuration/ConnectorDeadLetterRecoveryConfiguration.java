@@ -12,6 +12,7 @@ import io.github.khaledshawki.eoc.connectormanagement.application.service.Publis
 import io.github.khaledshawki.eoc.connectormanagement.application.service.RequestConnectorDeadLetterReplayService;
 import io.github.khaledshawki.eoc.platform.connectormanagement.adapter.in.scheduling.ConnectorDeadLetterReplayScheduledRelay;
 import io.github.khaledshawki.eoc.platform.messaging.kafka.PlatformKafkaProducerProperties;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipelineMetrics;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.UUID;
@@ -66,13 +67,15 @@ public class ConnectorDeadLetterRecoveryConfiguration {
       PublishConnectorDeadLetterReplayBatchUseCase useCase,
       ConnectorKafkaProperties kafkaProperties,
       PlatformKafkaProducerProperties producerProperties,
-      ConnectorDeadLetterRecoveryProperties properties) {
+      ConnectorDeadLetterRecoveryProperties properties,
+      EventPipelineMetrics metrics) {
     requireClaimLeaseExceedsPublicationBudget(kafkaProperties, producerProperties, properties);
     return new ConnectorDeadLetterReplayScheduledRelay(
         useCase,
         "connector-dlt-replay-" + UUID.randomUUID(),
         properties.batchSize(),
-        properties.claimLease());
+        properties.claimLease(),
+        metrics);
   }
 
   static void requireClaimLeaseExceedsPublicationBudget(

@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 import json
 import time
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
@@ -18,6 +18,8 @@ BUSINESS_DATE = date(2026, 5, 15)
 PAGE_SIZE = 100
 CONVERGENCE_TIMEOUT_SECONDS = 300.0
 POLL_INTERVAL_SECONDS = 0.5
+TOKEN_REFRESH_FRACTION = 0.10
+TOKEN_REFRESH_MARGIN_CAP_SECONDS = 30.0
 
 
 def authenticate_workload_identity(config: BaselineConfig, http: HttpClient) -> WorkloadIdentity:
@@ -42,6 +44,18 @@ def authenticate_workload_identity(config: BaselineConfig, http: HttpClient) -> 
         raise ScenarioError(
             "authentication", "WORKLOAD_TOKEN_INVALID", "Workload token response has no token"
         )
+    expires_in = payload.get("expires_in")
+    if isinstance(expires_in, bool) or not isinstance(expires_in, (int, float)) or expires_in <= 0:
+        raise ScenarioError(
+            "authentication",
+            "WORKLOAD_TOKEN_INVALID",
+            "Workload token response has no positive expires_in",
+        )
+    issued_at = time.monotonic()
+    refresh_margin = min(
+        TOKEN_REFRESH_MARGIN_CAP_SECONDS, float(expires_in) * TOKEN_REFRESH_FRACTION
+    )
+    refresh_at = issued_at + float(expires_in) - refresh_margin
 
     current = http.request(
         "GET",
@@ -66,7 +80,33 @@ def authenticate_workload_identity(config: BaselineConfig, http: HttpClient) -> 
         raise ScenarioError(
             "authentication", "WORKLOAD_IDENTITY_INVALID", "Workload roles are invalid"
         )
-    return WorkloadIdentity(token, issuer, subject, tuple(sorted(roles)))
+    return WorkloadIdentity(
+        token, issuer, subject, tuple(sorted(roles)), refresh_at_monotonic=refresh_at
+    )
+
+
+class WorkloadTokenProvider:
+    def __init__(
+        self, config: BaselineConfig, http: HttpClient, identity: WorkloadIdentity
+    ) -> None:
+        self._config = config
+        self._http = http
+        self._identity = identity
+        self._expected_principal = (identity.issuer, identity.subject, identity.roles)
+
+    def access_token(self) -> str:
+        refresh_at = self._identity.refresh_at_monotonic
+        if refresh_at is not None and time.monotonic() >= refresh_at:
+            refreshed = authenticate_workload_identity(self._config, self._http)
+            actual_principal = (refreshed.issuer, refreshed.subject, refreshed.roles)
+            if actual_principal != self._expected_principal:
+                raise ScenarioError(
+                    "authentication",
+                    "WORKLOAD_IDENTITY_CHANGED",
+                    "Workload service-account identity changed while refreshing its access token",
+                )
+            self._identity = refreshed
+        return self._identity.access_token
 
 
 def provision_workload_user(config: LabConfig, http: HttpClient, identity: WorkloadIdentity) -> str:
@@ -261,20 +301,24 @@ def read_all_receivables(
 def wait_for_analytics(
     config: LabConfig,
     http: HttpClient,
-    token: str,
+    token_provider: Callable[[], str],
     tenant_id: str,
     *,
     expected_count: int,
+    timeout_seconds: float = CONVERGENCE_TIMEOUT_SECONDS,
 ) -> list[dict[str, Any]]:
-    deadline = time.monotonic() + CONVERGENCE_TIMEOUT_SECONDS
+    if timeout_seconds <= 0:
+        raise ValueError("Analytics convergence timeout must be greater than zero")
+    deadline = time.monotonic() + timeout_seconds
     last_count = -1
     while time.monotonic() < deadline:
-        last_count = _read_receivable_total(config, http, token, tenant_id)
+        last_count = _read_receivable_total(config, http, token_provider(), tenant_id)
         if last_count == expected_count:
-            return read_all_receivables(config, http, token, tenant_id)
+            return read_all_receivables(config, http, token_provider(), tenant_id)
         time.sleep(POLL_INTERVAL_SECONDS)
     raise AnalyticsDidNotConverge(
-        f"Analytics did not converge to {expected_count} receivables; last count was {last_count}"
+        f"Analytics did not converge to {expected_count} receivables within "
+        f"{timeout_seconds:g} seconds; last count was {last_count}"
     )
 
 

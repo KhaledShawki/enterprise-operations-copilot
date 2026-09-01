@@ -5,6 +5,8 @@ import io.github.khaledshawki.eoc.platform.connectormanagement.adapter.messaging
 import io.github.khaledshawki.eoc.platform.connectormanagement.configuration.ConnectorKafkaConsumerProperties;
 import io.github.khaledshawki.eoc.platform.connectormanagement.configuration.ConnectorKafkaProperties;
 import io.github.khaledshawki.eoc.platform.messaging.kafka.PlatformKafkaProducerProperties;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipeline;
+import io.github.khaledshawki.eoc.platform.observability.metrics.EventPipelineMetrics;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import org.apache.kafka.common.TopicPartition;
@@ -18,6 +20,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.ConsumerRecordRecoverer;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
@@ -49,12 +52,15 @@ class KafkaConnectorConsumerConfiguration {
       matchIfMissing = true)
   KafkaConnectorIntegrationEventConsumer kafkaConnectorIntegrationEventConsumer(
       KafkaConnectorIntegrationEventDecoder decoder,
-      ConsumeConnectorIntegrationEventUseCase useCase) {
-    return new KafkaConnectorIntegrationEventConsumer(decoder, useCase);
+      ConsumeConnectorIntegrationEventUseCase useCase,
+      EventPipelineMetrics metrics) {
+    return new KafkaConnectorIntegrationEventConsumer(decoder, useCase, metrics);
   }
 
-  private static DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(
-      KafkaTemplate<String, String> kafkaTemplate, ConnectorKafkaConsumerProperties properties) {
+  private static ConsumerRecordRecoverer deadLetterPublishingRecoverer(
+      KafkaTemplate<String, String> kafkaTemplate,
+      ConnectorKafkaConsumerProperties properties,
+      EventPipelineMetrics metrics) {
     DeadLetterPublishingRecoverer recoverer =
         new DeadLetterPublishingRecoverer(
             kafkaTemplate,
@@ -69,11 +75,14 @@ class KafkaConnectorConsumerConfiguration {
               .add(FAILURE_CODE_HEADER, bytes(failure.failureCode()))
               .add(RETRYABLE_HEADER, bytes(Boolean.toString(failure.retryable())));
         });
-    return recoverer;
+    return (record, exception) -> {
+      recoverer.accept(record, exception);
+      metrics.recordDeadLetter(EventPipeline.CONNECTOR);
+    };
   }
 
   private static DefaultErrorHandler errorHandler(
-      DeadLetterPublishingRecoverer recoverer, ConnectorKafkaConsumerProperties properties) {
+      ConsumerRecordRecoverer recoverer, ConnectorKafkaConsumerProperties properties) {
     DefaultErrorHandler errorHandler =
         new DefaultErrorHandler(
             recoverer,
@@ -96,6 +105,7 @@ class KafkaConnectorConsumerConfiguration {
       ConnectorKafkaProperties kafkaProperties,
       PlatformKafkaProducerProperties producerProperties,
       ConnectorKafkaConsumerProperties consumerProperties,
+      EventPipelineMetrics metrics,
       @Value("${spring.kafka.consumer.max-poll-interval:5m}") Duration maxPollInterval) {
     if (kafkaProperties.topic().equals(consumerProperties.dltTopic())) {
       throw new IllegalStateException("Connector Kafka source and DLT topics must be different");
@@ -107,7 +117,8 @@ class KafkaConnectorConsumerConfiguration {
         new ConcurrentKafkaListenerContainerFactory<>();
     DefaultErrorHandler connectorKafkaErrorHandler =
         errorHandler(
-            deadLetterPublishingRecoverer(kafkaTemplate, consumerProperties), consumerProperties);
+            deadLetterPublishingRecoverer(kafkaTemplate, consumerProperties, metrics),
+            consumerProperties);
     configurer.configure(factory, consumerFactory);
     factory.setBatchListener(false);
     factory.setConcurrency(consumerProperties.concurrency());

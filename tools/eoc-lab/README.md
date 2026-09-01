@@ -63,16 +63,31 @@ docker compose \
   --env-file deployment/compose/.env \
   --file deployment/compose/compose.yaml \
   --file deployment/compose/compose.evidence.yaml \
-  up --detach --build --wait --wait-timeout 240 platform-service web-bff mock-erp
+  --file deployment/compose/compose.observability.yaml \
+  --profile evidence \
+  --profile observability \
+  up --detach --build
 
-./scripts/eoc-lab run baseline --records 137 --seed 42
+./scripts/eoc-lab run baseline --records 137 --seed 42 --capture-observability
 ```
 
 The baseline configures the external Mock ERP before creating business data, imports customers and
 invoices through the real connector boundary, reads authoritative Operations state, waits for the
 eventually consistent Analytics projection, and reconciles both through public APIs. Convergence
 polling observes only the Analytics page metadata; once the expected count is visible, the lab reads
-one strict, fully paginated snapshot for fingerprint and invariant reconciliation.
+one strict, fully paginated snapshot for fingerprint and invariant reconciliation. With
+`--capture-observability`, the lab waits for a drained Prometheus view that is stable across a
+scrape interval before the workload, then waits for the post-workload scrape, and stores exact
+counter deltas plus the final
+drained state in `result.json`. This uses only the Prometheus HTTP API; it does not read application
+databases or internal repositories. The before/after delta model means repeated runs do not require
+resetting cumulative Prometheus counters. The Analytics convergence deadline defaults to 300 seconds
+and can be raised explicitly with `--convergence-timeout-seconds`; the selected value is recorded in
+the evidence manifest so larger measurement workloads remain reproducible without changing product
+retry or outbox behavior. The workload service account keeps Keycloak's short-lived access-token
+policy: the lab reads each client-credentials token's `expires_in` value and re-authenticates the
+same service account before expiry during long-running campaigns. Issuer, subject, and roles must
+remain unchanged across re-authentication.
 
 Generated artifacts are written under `evidence/runs/<run-id>/` and are intentionally ignored by
 Git. Curated reference runs will be added separately when the measurement methodology is stable.

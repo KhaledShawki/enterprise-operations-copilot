@@ -9,6 +9,7 @@ class WorkloadIdentity:
     issuer: str
     subject: str
     roles: tuple[str, ...]
+    refresh_at_monotonic: float | None = None
 
 
 class ScenarioError(RuntimeError):
